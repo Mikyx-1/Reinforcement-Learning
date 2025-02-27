@@ -12,9 +12,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
-from torch import nn
-from torch import optim
+from torch import nn, optim
 from torch.distributions.categorical import Categorical
+from typing import Tuple, List
 
 sns.set()
 
@@ -22,7 +22,7 @@ DEVICE = 'cpu'
 
 # Policy and value model
 class ActorCriticNetwork(nn.Module):
-  def __init__(self, obs_space_size, action_space_size):
+  def __init__(self, obs_space_size: int, action_space_size: int) -> None:
     super().__init__()
 
     self.shared_layers = nn.Sequential(
@@ -41,17 +41,17 @@ class ActorCriticNetwork(nn.Module):
         nn.ReLU(),
         nn.Linear(64, 1))
 
-  def value(self, obs):
+  def value(self, obs: torch.Tensor) -> torch.Tensor:
     z = self.shared_layers(obs)
     value = self.value_layers(z)
     return value
 
-  def policy(self, obs):
+  def policy(self, obs: torch.Tensor) -> torch.Tensor:
     z = self.shared_layers(obs)
     policy_logits = self.policy_layers(z)
     return policy_logits
 
-  def forward(self, obs):
+  def forward(self, obs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     z = self.shared_layers(obs)
     policy_logits = self.policy_layers(z)
     value = self.value_layers(z)
@@ -59,13 +59,13 @@ class ActorCriticNetwork(nn.Module):
 
 class PPOTrainer():
   def __init__(self,
-              actor_critic,
-              ppo_clip_val=0.2,
-              target_kl_div=0.01,
-              max_policy_train_iters=80,
-              value_train_iters=80,
-              policy_lr=3e-4,
-              value_lr=1e-2):
+              actor_critic: nn.Module,
+              ppo_clip_val: float = 0.2,
+              target_kl_div: float=0.01,
+              max_policy_train_iters: int =80,
+              value_train_iters: int =80,
+              policy_lr: float =3e-4,
+              value_lr: float =1e-2):
     self.ac = actor_critic
     self.ppo_clip_val = ppo_clip_val
     self.target_kl_div = target_kl_div
@@ -80,7 +80,10 @@ class PPOTrainer():
         list(self.ac.value_layers.parameters())
     self.value_optim = optim.Adam(value_params, lr=value_lr)
 
-  def train_policy(self, obs, acts, old_log_probs, gaes):
+  def train_policy(self, obs: torch.Tensor, 
+                         acts: torch.Tensor,
+                         old_log_probs: torch.Tensor,
+                         gaes: torch.Tensor) -> None:
     for _ in range(self.max_policy_train_iters):
       self.policy_optim.zero_grad()
 
@@ -103,7 +106,7 @@ class PPOTrainer():
       if kl_div >= self.target_kl_div:
         break
 
-  def train_value(self, obs, returns):
+  def train_value(self, obs: torch.Tensor, returns: torch.Tensor) -> None:
     for _ in range(self.value_train_iters):
       self.value_optim.zero_grad()
 
@@ -114,7 +117,7 @@ class PPOTrainer():
       value_loss.backward()
       self.value_optim.step()
 
-def discount_rewards(rewards, gamma=0.99):
+def discount_rewards(rewards: List, gamma: float =0.99) -> np.ndarray:
     """
     Return discounted rewards based on the given rewards and gamma param.
     """
