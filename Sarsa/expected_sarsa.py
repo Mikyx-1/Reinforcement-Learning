@@ -37,8 +37,9 @@ for episode in range(num_epsidoes):
         else:
             next_action = np.argmax(Q[state])
 
-        Q[state, action] += alpha*(reward + gamma*Q[next_state, next_action] - Q[state, action])
-
+        expected_value = (1 - epsilon) * np.max(Q[next_state]) + epsilon * np.mean(Q[next_state]) # Expected value in both exploitation and exploration mode
+        Q[state, action] += alpha * (reward + gamma * expected_value - Q[state, action])
+        
         state = next_state
         action = next_action
         total_rewards += reward
