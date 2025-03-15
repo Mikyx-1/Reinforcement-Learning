@@ -5,7 +5,7 @@ from torch.distributions import Beta,Normal
 import numpy as np
 import copy
 import math
-
+import gym
 
 class BetaActor(nn.Module):
 	def __init__(self, state_dim: int, action_dim: int, net_width: int = 128):
@@ -116,51 +116,51 @@ class PPO_agent(object):
                 adv.append(advantage)
 
             adv.reverse()
-            adv = copy.deepcopy((adv[::-1]))
+            adv = copy.deepcopy((adv[:-1]))
             adv = torch.tensor(adv).unsqueeze(1).float().to(self.device)
             td_target = adv + vs
             adv = (adv - adv.mean()) / (adv.std() + 1e-4)
             
-            """Slice long trajectopy into short trajectory and perform mini-batch PPO update"""
-            a_optim_iter_num = int(math.ceil(s.shape[0] / self.a_optim_batch_size))
-            c_optim_iter_num = int(math.ceil(s.shape[0] / self.c_optim_batch_size))
             
-            for i in range(self.K_epochs):
-                # Shuffle the trajectory, Good for training
-                perm = np.arange(s.shape[0])
-                np.random.shuffle(perm)
-                perm = torch.LongTensor(perm).to(self.device)
-                s = s[perm].clone()
-                a = a[perm].clone()
-                td_target = td_target[perm].clone()
-                adv = adv[perm].clone()
-                logprob_a = logprob_a[perm].clone()
+        """Slice long trajectopy into short trajectory and perform mini-batch PPO update"""
+        a_optim_iter_num = int(math.ceil(s.shape[0] / self.a_optim_batch_size))
+        c_optim_iter_num = int(math.ceil(s.shape[0] / self.c_optim_batch_size))
+    
+        for i in range(self.K_epochs):
+            # Shuffle the trajectory, Good for training
+            perm = np.arange(s.shape[0])
+            np.random.shuffle(perm)
+            perm = torch.LongTensor(perm).to(self.device)
+            s = s[perm].clone()
+            a = a[perm].clone()
+            td_target = td_target[perm].clone()
+            adv = adv[perm].clone()
+            logprob_a = logprob_a[perm].clone()
+            
+            
+            for i in range(a_optim_iter_num):
+                index = slice(i * self.a_optim_batch_size, min((i + 1) * self.a_optim_batch_size, s.shape[0]))
+                distribution = self.actor.get_dist(s[index]) 
+                dist_entropy = distribution.entropy().sum(1, keepdim=True)
+                logprob_a_now = distribution.log_prob(a[index])
+                ratio = torch.exp(logprob_a_now.sum(1, keepdim=True) - logprob_a[index].sum(1, keepdim=True))
+                
+                surr1 = ratio * adv[index]
+                surr2 = torch.clamp(ratio, 1-self.clip_rate, 1+self.clip_rate)*adv[index]
+                a_loss = -torch.min(surr1, surr2) - self.entropy_coef*dist_entropy
+                self.actor_optimiser.zero_grad()
+                a_loss.mean().backward()
+                torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 40)
+                self.actor_optimiser.step()
                 
                 
-                for i in range(a_optim_iter_num):
-                    index = slice(i * self.a_optim_batch_size, min((i + 1) * self.a_optim_batch_size, s.shape[0]))
-                    distribution = self.actor.get_dist(s[index]) 
-                    dist_entropy = distribution.entropy().sum(1, keepdim=True)
-                    logprob_a_now = distribution.log_prob(a[index])
-                    ratio = torch.exp(logprob_a_now.sum(1, keepdim=True) - logprob_a[index].sum(1, keepdim=True))
-                    
-                    surr1 = ratio * adv[index]
-                    surr2 = torch.clamp(ratio, 1-self.clip_rate, 1+self.clip_rate)*adv[index]
-                    a_loss = -torch.min(surr1, surr2) - self.entropy_coef*dist_entropy
-                    
-                    self.actor_optimiser.zero_grad()
-                    a_loss.mean().backward()
-                    torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 40)
-                    self.actor_optimiser.step()
-                    
-                    
             for i in range(c_optim_iter_num):
                 index = slice(i * self.c_optim_batch_size, min((i + 1) * self.c_optim_batch_size, s.shape[0]))
-                c_loss = (self.critic[s[index]] - td_target).pow(2).mean()
+                c_loss = (self.critic(s[index]) - td_target[index]).pow(2).mean()
                 for name, param in self.critic.named_parameters():
                     if "weight" in name:
                         c_loss += param.pow(2).sum() *self.l2_reg
-                        
+                    
                 self.critic_optimiser.zero_grad()
                 c_loss.backward()
                 self.critic_optimiser.step()
@@ -173,14 +173,56 @@ class PPO_agent(object):
         self.s_next_holder[idx] = s_next
         self.logprob_a_holder[idx] = logprob_a
         self.done_holder[idx] = done
-        self.dw[idx] = dw
+        self.dw_holder[idx] = dw
+
+def str2bool(v):
+	'''transfer str to bool for argparse'''
+	if isinstance(v, bool):
+		return v
+	if v.lower() in ('yes', 'True','true','TRUE', 't', 'y', '1'):
+		return True
+	elif v.lower() in ('no', 'False','false','FALSE', 'f', 'n', '0'):
+		return False
+	else:
+		print('Wrong Input.')
+		raise
+
+
+def Action_adapter(a,max_action):
+	#from [0,1] to [-max,max]
+	return  2*(a-0.5)*max_action
+
+def Reward_adapter(r, EnvIdex):
+	# For BipedalWalker
+	if EnvIdex == 0 or EnvIdex == 1:
+		if r <= -100: r = -1
+	# For Pendulum-v0
+	elif EnvIdex == 3:
+		r = (r + 8) / 8
+	return r
+
+def evaluate_policy(env, agent, max_action, turns):
+	total_scores = 0
+	for j in range(turns):
+		s, info = env.reset()
+		done = False
+		while not done:
+			a, logprob_a = agent.select_action(s, deterministic=True) # Take deterministic actions when evaluation
+			act = Action_adapter(a, max_action)  # [0,1] to [-max,max]
+			s_next, r, dw, tr, info = env.step(act)
+			done = (dw or tr)
+
+			total_scores += r
+			s = s_next
+
+	return total_scores/turns
 
 if __name__ == "__main__":
     # Define hyperparameters (example values, adjust as needed)
     params = {
-        'state_dim': 8,              # for example, state dimension
-        'action_dim': 2,             # for example, action dimension in [0,1]
-        'net_width': 64,
+        'state_dim': 3,              # for example, state dimension
+        'action_dim': 1,             # for example, action dimension in [0,1]
+        'net_width': 128,
         'device': torch.device("cpu"),
         'T_horizon': 2048,
         'actor_lr': 2e-4,
@@ -193,7 +235,8 @@ if __name__ == "__main__":
         'clip_rate': 0.2,
         'entropy_coef': 1e-3,
         'entropy_coef_decay': 0.99,
-        'l2_reg': 1e-3
+        'l2_reg': 1e-3,
+        'max_action': 2
     }
     
     # Create agent instance.
@@ -202,3 +245,38 @@ if __name__ == "__main__":
     # (Your training loop would interact with the environment here, call select_action,
     # store transitions via put_data, and call agent.train() once the trajectory is filled.)
     print("PPO agent for continuous control with Beta distribution is ready.")
+
+    env = gym.make("Pendulum-v1")
+    MAX_TRAIN_STEPS = 100000
+    total_steps = 0
+    traj_lenth = 0  # Initialize before training
+
+    while total_steps < MAX_TRAIN_STEPS:
+        s, info = env.reset()
+        done = False
+        total_rewards = 0
+        while not done:
+            a, logprob_a = agent.select_action(s, deterministic=False)
+            act = Action_adapter(a, params["max_action"])
+            s_next, r, dw, tr, info = env.step(act)
+            total_rewards += r
+            r = Reward_adapter(r, 0)
+            done = (dw or tr)
+
+            agent.put_data(s, a, r, s_next, logprob_a, done, dw, idx=traj_lenth)
+            s = s_next
+
+            traj_lenth += 1
+            total_steps += 1
+
+            if traj_lenth % params["T_horizon"] == 0:
+                agent.train()
+                traj_lenth = 0
+
+            if total_steps % params.get("eval_interval", 10) == 0:
+                score = evaluate_policy(env, agent, params["max_action"], turns=5)
+                print(f"Step: {total_steps}, Eval Score: {score}")
+            
+
+        
+    
