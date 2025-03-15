@@ -18,18 +18,18 @@ class ActorCriticNetwork(nn.Module):
 
     self.shared_layers = nn.Sequential(
         nn.Linear(obs_space_size, 64),
-        nn.ReLU(),
+        nn.Softplus(),
         nn.Linear(64, 64),
-        nn.ReLU())
+        nn.Softplus())
 
     self.policy_layers = nn.Sequential(
         nn.Linear(64, 64),
-        nn.ReLU(),
+        nn.Softplus(),
         nn.Linear(64, action_space_size))
 
     self.value_layers = nn.Sequential(
         nn.Linear(64, 64),
-        nn.ReLU(),
+        nn.Softplus(),
         nn.Linear(64, 1))
 
   def value(self, obs: torch.Tensor) -> torch.Tensor:
@@ -211,8 +211,7 @@ for episode_idx in range(n_episodes):
   act_log_probs = torch.tensor(train_data[4][permute_idxs],
                                dtype=torch.float32, device=DEVICE)
   
-  old_logits = torch.tensor(train_data[5][permute_idxs],
-                               dtype=torch.float32, device=DEVICE)
+  old_logits = torch.stack(list(train_data[5]))[permute_idxs].to(DEVICE)
 
   # Value data
   returns = discount_rewards(train_data[2])[permute_idxs]
