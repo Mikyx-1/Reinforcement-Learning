@@ -5,7 +5,7 @@ from torch.distributions import Beta,Normal
 import numpy as np
 import copy
 import math
-import gym
+import gymnasium as gym
 
 class BetaActor(nn.Module):
 	def __init__(self, state_dim: int, action_dim: int, net_width: int = 128):
@@ -247,7 +247,7 @@ if __name__ == "__main__":
     print("PPO agent for continuous control with Beta distribution is ready.")
 
     env = gym.make("Pendulum-v1")
-    MAX_TRAIN_STEPS = 100000
+    MAX_TRAIN_STEPS = 1000000
     total_steps = 0
     traj_lenth = 0  # Initialize before training
 
@@ -273,8 +273,8 @@ if __name__ == "__main__":
                 agent.train()
                 traj_lenth = 0
 
-            if total_steps % params.get("eval_interval", 10) == 0:
-                score = evaluate_policy(env, agent, params["max_action"], turns=5)
+            if total_steps % params.get("eval_interval", 5000) == 0:
+                score = evaluate_policy(env, agent, params["max_action"], turns=3)
                 print(f"Step: {total_steps}, Eval Score: {score}")
             
 
