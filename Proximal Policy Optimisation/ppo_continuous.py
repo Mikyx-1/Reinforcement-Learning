@@ -175,31 +175,9 @@ class PPO_agent(object):
         self.done_holder[idx] = done
         self.dw_holder[idx] = dw
 
-def str2bool(v):
-	'''transfer str to bool for argparse'''
-	if isinstance(v, bool):
-		return v
-	if v.lower() in ('yes', 'True','true','TRUE', 't', 'y', '1'):
-		return True
-	elif v.lower() in ('no', 'False','false','FALSE', 'f', 'n', '0'):
-		return False
-	else:
-		print('Wrong Input.')
-		raise
-
-
 def Action_adapter(a,max_action):
 	#from [0,1] to [-max,max]
 	return  2*(a-0.5)*max_action
-
-def Reward_adapter(r, EnvIdex):
-	# For BipedalWalker
-	if EnvIdex == 0 or EnvIdex == 1:
-		if r <= -100: r = -1
-	# For Pendulum-v0
-	elif EnvIdex == 3:
-		r = (r + 8) / 8
-	return r
 
 def evaluate_policy(env, agent, max_action, turns):
 	total_scores = 0
@@ -260,7 +238,6 @@ if __name__ == "__main__":
             act = Action_adapter(a, params["max_action"])
             s_next, r, dw, tr, info = env.step(act)
             total_rewards += r
-            r = Reward_adapter(r, 0)
             done = (dw or tr)
 
             agent.put_data(s, a, r, s_next, logprob_a, done, dw, idx=traj_lenth)
