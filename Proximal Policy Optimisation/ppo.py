@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from torch import nn, optim
 from torch.distributions.categorical import Categorical
+import torch.nn.functional as F
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -116,9 +117,7 @@ class PPOTrainer:
             self.value_optim.zero_grad()
 
             values = self.critic(obs)
-            value_loss = (returns - values) ** 2
-            value_loss = value_loss.mean()
-
+            value_loss = F.huber_loss(values, returns.unsqueeze(1))            
             value_loss.backward()
             self.value_optim.step()
 
