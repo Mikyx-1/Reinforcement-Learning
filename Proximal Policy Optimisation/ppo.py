@@ -109,9 +109,7 @@ class PPOTrainer:
             policy_loss.backward()
             self.policy_optim.step()
 
-            kl_div = (old_log_probs - new_log_probs).mean()
-            if kl_div >= self.target_kl_div:
-                break
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 40)
 
     def train_value(self, obs: torch.Tensor, returns: torch.Tensor) -> None:
         for _ in range(self.value_train_iters):
@@ -217,8 +215,8 @@ ppo = PPOTrainer(
     policy_lr=3e-4,
     value_lr=1e-3,
     target_kl_div=0.02,
-    max_policy_train_iters=40,
-    value_train_iters=40,
+    max_policy_train_iters=5,
+    value_train_iters=5,
 )
 
 ep_rewards = []
