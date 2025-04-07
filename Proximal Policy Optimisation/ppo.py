@@ -4,14 +4,16 @@
 Revised PPO code with separate Actor and Critic networks.
 """
 
+from typing import List, Tuple
+
 import gymnasium as gym
 import numpy as np
 import torch
 from torch import nn, optim
 from torch.distributions.categorical import Categorical
-from typing import Tuple, List
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 
 ####################################
 # Actor Network
@@ -25,12 +27,13 @@ class ActorNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 64),
             nn.ReLU(),
-            nn.Linear(64, action_space_size)
+            nn.Linear(64, action_space_size),
         )
-    
+
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
         logits = self.network(obs)
         return logits
+
 
 ####################################
 # Critic Network
@@ -43,26 +46,29 @@ class CriticNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 64),
             nn.ReLU(),
-            nn.Linear(64, 1)
+            nn.Linear(64, 1),
         )
-    
+
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
         value = self.network(obs)
         return value
 
+
 ####################################
 # PPO Trainer with Separate Actor and Critic
 ####################################
-class PPOTrainer():
-    def __init__(self,
-                 actor: nn.Module,
-                 critic: nn.Module,
-                 ppo_clip_val: float = 0.2,
-                 target_kl_div: float = 0.01,
-                 max_policy_train_iters: int = 80,
-                 value_train_iters: int = 80,
-                 policy_lr: float = 3e-4,
-                 value_lr: float = 1e-2):
+class PPOTrainer:
+    def __init__(
+        self,
+        actor: nn.Module,
+        critic: nn.Module,
+        ppo_clip_val: float = 0.2,
+        target_kl_div: float = 0.01,
+        max_policy_train_iters: int = 80,
+        value_train_iters: int = 80,
+        policy_lr: float = 3e-4,
+        value_lr: float = 1e-2,
+    ):
         self.actor = actor
         self.critic = critic
         self.ppo_clip_val = ppo_clip_val
@@ -73,23 +79,32 @@ class PPOTrainer():
         self.policy_optim = optim.Adam(self.actor.parameters(), lr=policy_lr)
         self.value_optim = optim.Adam(self.critic.parameters(), lr=value_lr)
 
-    def train_policy(self, obs: torch.Tensor, 
-                     acts: torch.Tensor,
-                     old_log_probs: torch.Tensor,
-                     gaes: torch.Tensor) -> None:
+    def train_policy(
+        self,
+        obs: torch.Tensor,
+        acts: torch.Tensor,
+        old_log_probs: torch.Tensor,
+        gaes: torch.Tensor,
+    ) -> None:
         for _ in range(self.max_policy_train_iters):
             self.policy_optim.zero_grad()
 
             logits = self.actor(obs)
             dist = Categorical(logits=logits)
+            dist_entropy = dist.entropy()
             new_log_probs = dist.log_prob(acts)
 
             policy_ratio = torch.exp(new_log_probs - old_log_probs)
-            clipped_ratio = policy_ratio.clamp(1 - self.ppo_clip_val, 1 + self.ppo_clip_val)
+            clipped_ratio = policy_ratio.clamp(
+                1 - self.ppo_clip_val, 1 + self.ppo_clip_val
+            )
 
             loss_unclipped = policy_ratio * gaes
             loss_clipped = clipped_ratio * gaes
-            policy_loss = -torch.min(loss_unclipped, loss_clipped).mean()
+            policy_loss = (
+                -torch.min(loss_unclipped, loss_clipped).mean()
+                - 0.01 * dist_entropy.mean()
+            )
 
             policy_loss.backward()
             self.policy_optim.step()
@@ -109,26 +124,32 @@ class PPOTrainer():
             value_loss.backward()
             self.value_optim.step()
 
+
 ####################################
 # Helper functions: Discounted rewards and GAEs
 ####################################
 def discount_rewards(rewards: List, gamma: float = 0.99) -> np.ndarray:
     new_rewards = [float(rewards[-1])]
-    for i in reversed(range(len(rewards)-1)):
+    for i in reversed(range(len(rewards) - 1)):
         new_rewards.append(float(rewards[i]) + gamma * new_rewards[-1])
     return np.array(new_rewards[::-1])
+
 
 def calculate_gaes(rewards, values, gamma=0.99, decay=0.97):
     """
     Compute Generalized Advantage Estimates.
     """
     next_values = np.concatenate([values[1:], [0]])
-    deltas = [rew + gamma * next_val - val for rew, val, next_val in zip(rewards, values, next_values)]
+    deltas = [
+        rew + gamma * next_val - val
+        for rew, val, next_val in zip(rewards, values, next_values)
+    ]
 
     gaes = [deltas[-1]]
-    for i in reversed(range(len(deltas)-1)):
+    for i in reversed(range(len(deltas) - 1)):
         gaes.append(deltas[i] + decay * gamma * gaes[-1])
     return np.array(gaes[::-1])
+
 
 ####################################
 # Rollout function
@@ -162,7 +183,7 @@ def rollout(actor: nn.Module, critic: nn.Module, env, max_steps=1000):
 
         obs = next_obs
         ep_reward += reward
-        if done:
+        if done or truncated:
             break
 
     # Convert lists to numpy arrays
@@ -171,10 +192,11 @@ def rollout(actor: nn.Module, critic: nn.Module, env, max_steps=1000):
     train_data[3] = calculate_gaes(train_data[2], train_data[3])
     return train_data, ep_reward
 
+
 ####################################
 # Main setup and training loop
 ####################################
-env = gym.make('CartPole-v1')
+env = gym.make("CartPole-v1")
 obs_space = env.observation_space.shape[0]
 action_space = env.action_space.n
 
@@ -196,7 +218,7 @@ ppo = PPOTrainer(
     value_lr=1e-3,
     target_kl_div=0.02,
     max_policy_train_iters=40,
-    value_train_iters=40
+    value_train_iters=40,
 )
 
 ep_rewards = []
@@ -210,9 +232,15 @@ for episode_idx in range(n_episodes):
     # For actor training, stack observations (the policy input)
     obs_np = np.stack(train_data[0])
     obs_tensor = torch.tensor(obs_np[permute_idxs], dtype=torch.float32, device=DEVICE)
-    acts_tensor = torch.tensor(train_data[1][permute_idxs], dtype=torch.int64, device=DEVICE)
-    gaes_tensor = torch.tensor(train_data[3][permute_idxs], dtype=torch.float32, device=DEVICE)
-    act_log_probs_tensor = torch.tensor(train_data[4][permute_idxs], dtype=torch.float32, device=DEVICE)
+    acts_tensor = torch.tensor(
+        train_data[1][permute_idxs], dtype=torch.int64, device=DEVICE
+    )
+    gaes_tensor = torch.tensor(
+        train_data[3][permute_idxs], dtype=torch.float32, device=DEVICE
+    )
+    act_log_probs_tensor = torch.tensor(
+        train_data[4][permute_idxs], dtype=torch.float32, device=DEVICE
+    )
 
     # For critic training, compute returns using discounted rewards
     returns = discount_rewards(train_data[2])[permute_idxs]
