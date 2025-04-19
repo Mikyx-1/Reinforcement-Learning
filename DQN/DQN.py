@@ -152,7 +152,7 @@ class DQNTrainer(object):
 
         self.target_agent.load_state_dict(target_agent_state_dict)
 
-    def rollout(self) -> List[int, int]:
+    def rollout(self):
 
         state, _ = self.env.reset()
 
@@ -176,9 +176,6 @@ class DQNTrainer(object):
             # Move to the next state
             state = next_state
 
-            # Perform one step of the optimization (on the policy network)
-            self.train_agent()
-
             if done:
                 break
 
@@ -188,6 +185,7 @@ class DQNTrainer(object):
         self.init_training_phase()
         for i_episode in range(num_episodes):
             total_rewards, eps_length = self.rollout()
+            self.train_agent()
             print(
                 f"Episode {i_episode}, Episode length: {eps_length} Total rewards: {total_rewards}"
             )
@@ -201,6 +199,6 @@ if __name__ == "__main__":
     n_observations = env.observation_space.shape[0]
     agent = DQN(n_observations, n_actions).to(device)
     trainer = DQNTrainer(
-        agent, env="CartPole-v1", memory_size=10000, batch_size=512, device=device
+        agent, env="CartPole-v1", memory_size=10000, batch_size=4096, device=device
     )
-    trainer.train(num_episodes=1000)
+    trainer.train(num_episodes=100000)
