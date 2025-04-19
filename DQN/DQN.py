@@ -181,13 +181,13 @@ class DQNTrainer(object):
             if done:
                 break
 
-        return total_rewards
+        return total_rewards, t
 
     def train(self, num_episodes: int = 600) -> None:
         self.init_training_phase()
         for i_episode in range(num_episodes):
-            total_rewards = self.rollout()
-            print(f"Episode {i_episode} Total rewards: {total_rewards}")
+            total_rewards, eps_length = self.rollout()
+            print(f"Episode {i_episode}, Episode length: {eps_length} Total rewards: {total_rewards}")
         self.env.close()
 
 
