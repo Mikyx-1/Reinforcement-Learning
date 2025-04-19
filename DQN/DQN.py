@@ -8,27 +8,28 @@ import torch
 from torch import nn, optim
 import torch.nn.functional as F
 import copy
+from typing import List
 
 Transition = namedtuple("Transition", ("state", "action", "next_state", "reward"))
 
 
 class ReplayMemory(object):
-    def __init__(self, capacity: int = 2000):
+    def __init__(self, capacity: int = 2000) -> None:
         self.memory = deque([], maxlen=capacity)
 
-    def push(self, *args):
+    def push(self, *args) -> None:
         """Save a transition"""
         self.memory.append(Transition(*args))
 
-    def sample(self, batch_size):
+    def sample(self, batch_size: int) -> List[Transition]:
         return random.sample(self.memory, batch_size)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.memory)
 
 
 class DQN(nn.Module):
-    def __init__(self, n_observations, n_actions):
+    def __init__(self, n_observations: int, n_actions: int) -> None:
         super().__init__()
         self.layer1 = nn.Linear(n_observations, 128)
         self.layer2 = nn.Linear(128, 128)
@@ -54,7 +55,7 @@ class DQNTrainer(object):
         eps_decay: int = 1000,
         tau: float = 0.005,
         lr: float = 1e-4,
-    ):
+    ) -> None:
 
         self.policy_agent = agent
         self.memory = self.init_memory(memory_size)
@@ -151,7 +152,7 @@ class DQNTrainer(object):
 
         self.target_agent.load_state_dict(target_agent_state_dict)
 
-    def rollout(self) -> int:
+    def rollout(self) -> List[int, int]:
 
         state, _ = self.env.reset()
 
