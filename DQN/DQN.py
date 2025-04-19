@@ -194,10 +194,12 @@ class DQNTrainer(object):
 
 
 if __name__ == "__main__":
-    env = gym.make("LunarLander-v3")
+    env = gym.make("CartPole-v1")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     n_actions = env.action_space.n
     n_observations = env.observation_space.shape[0]
     agent = DQN(n_observations, n_actions).to(device)
-    trainer = DQNTrainer(agent, device=device)
-    trainer.train()
+    trainer = DQNTrainer(
+        agent, env="CartPole-v1", memory_size=10000, batch_size=512, device=device
+    )
+    trainer.train(num_episodes=1000)
