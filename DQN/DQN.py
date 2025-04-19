@@ -56,7 +56,7 @@ class DQNTrainer(object):
         lr: float = 1e-4,
     ):
 
-        self.agent = agent
+        self.policy_agent = agent
         self.memory = self.init_memory(memory_size)
         self.device = device
         self.env = gym.make(env)
@@ -76,12 +76,12 @@ class DQNTrainer(object):
         return memory
 
     def init_training_phase(self) -> None:
-        self.running_agent = copy.deepcopy(self.agent)
-        self.running_agent.train()
-        self.agent.train()
+        self.target_agent = copy.deepcopy(self.policy_agent).to(self.device)
+        self.target_agent.eval()
+        self.policy_agent.train()
 
         self.optimiser = optim.AdamW(
-            self.running_agent.parameters(), lr=self.lr, amsgrad=True
+            self.policy_agent.parameters(), lr=self.lr, amsgrad=True
         )
         self.loss_fn = nn.SmoothL1Loss()
 
@@ -92,7 +92,7 @@ class DQNTrainer(object):
 
     def deterministic_act(self, state: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
-            return self.agent(state).max(1)[1].view(1, 1)
+            return self.policy_agent(state).max(1)[1].view(1, 1)
 
     def select_action(self, state: torch.Tensor) -> torch.Tensor:
         sample = random.random()
@@ -118,14 +118,14 @@ class DQNTrainer(object):
         non_final_next_states = torch.cat(
             [s for s in batch.next_state if s is not None]
         )
-        state_batch = torch.cat(batch.state).to(self.device)
+        state_batch = torch.cat(batch.state).float().to(self.device)
         action_batch = torch.cat(batch.action).to(self.device)
         reward_batch = torch.cat(batch.reward).to(self.device)
 
-        state_action_values = self.agent(state_batch).gather(1, action_batch)
+        state_action_values = self.policy_agent(state_batch).gather(1, action_batch)
         next_state_values = torch.zeros(self.batch_size, device=self.device)
         with torch.no_grad():
-            next_state_values[non_final_mask] = self.running_agent(
+            next_state_values[non_final_mask] = self.target_agent(
                 non_final_next_states
             ).max(1)[0]
 
@@ -137,19 +137,19 @@ class DQNTrainer(object):
         loss.backward()
 
         # In-place gradient clipping
-        torch.nn.utils.clip_grad_norm_(self.agent.parameters(), 40)
+        torch.nn.utils.clip_grad_norm_(self.policy_agent.parameters(), 40)
         self.optimiser.step()
 
         # Soft update of the target network's weights
-        agent_state_dict = self.agent.state_dict()
-        running_agent_state_dict = self.running_agent.state_dict()
+        policy_agent_state_dict = self.policy_agent.state_dict()
+        target_agent_state_dict = self.target_agent.state_dict()
 
-        for key in running_agent_state_dict.keys():
-            agent_state_dict[key] = (1 - self.tau) * agent_state_dict[
+        for key in policy_agent_state_dict.keys():
+            target_agent_state_dict[key] = (1 - self.tau) * target_agent_state_dict[
                 key
-            ] + self.tau * running_agent_state_dict[key]
+            ] + self.tau * policy_agent_state_dict[key]
 
-        self.agent.load_state_dict(agent_state_dict)
+        self.target_agent.load_state_dict(target_agent_state_dict)
 
     def rollout(self) -> int:
 
@@ -187,7 +187,9 @@ class DQNTrainer(object):
         self.init_training_phase()
         for i_episode in range(num_episodes):
             total_rewards, eps_length = self.rollout()
-            print(f"Episode {i_episode}, Episode length: {eps_length} Total rewards: {total_rewards}")
+            print(
+                f"Episode {i_episode}, Episode length: {eps_length} Total rewards: {total_rewards}"
+            )
         self.env.close()
 
 
