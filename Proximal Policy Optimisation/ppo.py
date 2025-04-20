@@ -22,18 +22,18 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class ActorNetwork(nn.Module):
     def __init__(self, obs_space_size: int, action_space_size: int) -> None:
         super().__init__()
-        # You can choose to have a network architecture specific for the policy.
         self.network = nn.Sequential(
             nn.Linear(obs_space_size, 64),
-            nn.ReLU(),
+            nn.LayerNorm(64),
+            nn.GELU(),
             nn.Linear(64, 64),
-            nn.ReLU(),
+            nn.LayerNorm(64),
+            nn.GELU(),
             nn.Linear(64, action_space_size),
         )
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
-        logits = self.network(obs)
-        return logits
+        return self.network(obs)
 
 
 ####################################
@@ -44,15 +44,16 @@ class CriticNetwork(nn.Module):
         super().__init__()
         self.network = nn.Sequential(
             nn.Linear(obs_space_size, 64),
-            nn.ReLU(),
+            nn.LayerNorm(64),
+            nn.GELU(),
             nn.Linear(64, 64),
-            nn.ReLU(),
+            nn.LayerNorm(64),
+            nn.GELU(),
             nn.Linear(64, 1),
         )
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
-        value = self.network(obs)
-        return value
+        return self.network(obs)
 
 
 ####################################
@@ -77,8 +78,8 @@ class PPOTrainer:
         self.max_policy_train_iters = max_policy_train_iters
         self.value_train_iters = value_train_iters
 
-        self.policy_optim = optim.Adam(self.actor.parameters(), lr=policy_lr)
-        self.value_optim = optim.Adam(self.critic.parameters(), lr=value_lr)
+        self.policy_optim = optim.RMSprop(self.actor.parameters(), lr=policy_lr)
+        self.value_optim = optim.RMSprop(self.critic.parameters(), lr=value_lr)
 
     def train_policy(
         self,
@@ -194,7 +195,7 @@ def rollout(actor: nn.Module, critic: nn.Module, env, max_steps=1000):
 ####################################
 # Main setup and training loop
 ####################################
-env = gym.make("CartPole-v1")
+env = gym.make("LunarLander-v3")
 obs_space = env.observation_space.shape[0]
 action_space = env.action_space.n
 
@@ -206,7 +207,7 @@ train_data, reward = rollout(actor, critic, env)
 print("Test rollout complete. Reward:", reward)
 
 # Define training parameters
-n_episodes = 1000
+n_episodes = 2000
 print_freq = 20
 
 ppo = PPOTrainer(
