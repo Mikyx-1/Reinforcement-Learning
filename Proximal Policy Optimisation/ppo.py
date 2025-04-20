@@ -108,16 +108,17 @@ class PPOTrainer:
             )
 
             policy_loss.backward()
-            self.policy_optim.step()
 
             torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 40)
+
+            self.policy_optim.step()
 
     def train_value(self, obs: torch.Tensor, returns: torch.Tensor) -> None:
         for _ in range(self.value_train_iters):
             self.value_optim.zero_grad()
 
             values = self.critic(obs)
-            value_loss = F.huber_loss(values, returns.unsqueeze(1))            
+            value_loss = F.huber_loss(values, returns.unsqueeze(1))
             value_loss.backward()
             self.value_optim.step()
 
@@ -248,5 +249,8 @@ for episode_idx in range(n_episodes):
     ppo.train_value(obs_tensor, returns_tensor)
 
     if (episode_idx + 1) % print_freq == 0:
-        print('Episode {} | Avg Reward {:.1f}'.format(
-            episode_idx + 1, np.mean(ep_rewards[-print_freq:])))
+        print(
+            "Episode {} | Avg Reward {:.1f}".format(
+                episode_idx + 1, np.mean(ep_rewards[-print_freq:])
+            )
+        )
