@@ -1,4 +1,7 @@
+import time
+
 import gymnasium as gym
+import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
 
@@ -6,39 +9,47 @@ from gymnasium import spaces
 class HelicopterControlEnv(gym.Env):
     def __init__(self):
         super().__init__()
-        self.grid_size = 50  # Reduced grid size
-        self.max_step_size = 100  # Reduced max steps
+        self.grid_size = 50
+        self.max_step_size = 100
         self.action_space = spaces.Discrete(5)  # up, left, right, up-left, up-right
         self.observation_space = spaces.Box(
             low=0, high=self.grid_size - 1, shape=(4,), dtype=np.int32
         )
-        self.gravity = 0.5  # Reduced gravity
-        self.step_size = 2  # Increased movement step size
+        self.gravity = 0.5
+        self.step_size = 2
 
         self.agent_pos = np.array([0, 0])  # (x, y)
         self.goal_pos = np.array([0, 0])
-        self.step_count = 0  # Initialize step counter
+        self.step_count = 0
 
     def reset(self, goal=None, seed=None, options=None):
-        super().reset(seed=seed)  # Handle seeding
-        # Initialize agent and goal in a smaller region (e.g., within 30x30)
-        self.agent_pos = np.array([np.random.randint(0, self.grid_size-1), np.random.randint(0, self.grid_size-1)])
+        super().reset(seed=seed)
+        self.agent_pos = np.array(
+            [
+                np.random.randint(0, self.grid_size - 1),
+                np.random.randint(0, self.grid_size - 1),
+            ]
+        )
         if goal is None:
             self.goal_pos = np.array(
-                [np.random.randint(0, self.grid_size-1), np.random.randint(0, self.grid_size-1)]
+                [
+                    np.random.randint(0, self.grid_size - 1),
+                    np.random.randint(0, self.grid_size - 1),
+                ]
             )
         else:
             self.goal_pos = np.array(goal)
-        self.step_count = 0  # Reset step counter
+        self.step_count = 0
         return self._get_obs(), {}
 
     def _get_obs(self):
-        return np.array([*self.agent_pos, *self.goal_pos], dtype=np.int32)
+        return (
+            np.array([*self.agent_pos, *self.goal_pos], dtype=np.float32)
+        )
 
     def step(self, action):
-        self.step_count += 1  # Increment step counter
+        self.step_count += 1
 
-        # Apply action with increased step size
         if action == 0:  # thrust up
             self.agent_pos[1] += self.step_size
         elif action == 1:  # thrust left
@@ -50,35 +61,95 @@ class HelicopterControlEnv(gym.Env):
         elif action == 4:  # thrust up-right
             self.agent_pos += [self.step_size, self.step_size]
 
-        # Apply gravity (pull down)
         self.agent_pos[1] -= self.gravity
-
-        # Clip to grid bounds
         self.agent_pos = np.clip(self.agent_pos, 0, self.grid_size - 1)
 
-        # Compute reward and termination
         done = np.array_equal(self.agent_pos, self.goal_pos)
         truncated = self.step_count >= self.max_step_size
 
-        # Reward shaping: sparse + dense (negative Manhattan distance)
         if done:
             reward = 100
         else:
+            # distance = np.linalg.norm(self.agent_pos - self.goal_pos)  # Fixed typo
             distance = np.sum(np.abs(self.agent_pos - self.goal_pos))
-            reward = -1 - 0.1 * distance  # Dense penalty for distance
+            reward = -1 - 0.1 * distance
 
         return self._get_obs(), reward, done, truncated, {}
 
     def render(self, mode="human"):
-        grid = np.full((self.grid_size, self.grid_size), ".", dtype=str)
-        x, y = self.agent_pos
-        gx, gy = self.goal_pos
-        grid[int(y), int(x)] = "H"  # Cast to int for indexing
-        grid[int(gy), int(gx)] = "G"
-        print("\n".join("".join(row) for row in grid[::-1]))
-        print()
+        if mode == "human":
+            grid = np.full((self.grid_size, self.grid_size), ".", dtype=str)
+            x, y = self.agent_pos
+            gx, gy = self.goal_pos
+            grid[int(y), int(x)] = "H"
+            grid[int(gy), int(gx)] = "G"
+            print("\n".join("".join(row) for row in grid[::-1]))
+            print()
+        elif mode == "rgb_array":
+            # For potential future use with other rendering frameworks
+            pass
 
 
-env = HelicopterControlEnv()
-obs, _ = env.reset()
-print(f"obs: {obs}")
+# Visualization function using Matplotlib
+def plot_environment(env, step, total_reward, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots()
+    ax.clear()
+    ax.set_xlim(-1, env.grid_size)
+    ax.set_ylim(-1, env.grid_size)
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.grid(True)
+
+    # Plot agent and goal
+    ax.plot(env.agent_pos[0], env.agent_pos[1], "bo", label="Helicopter", markersize=10)
+    ax.plot(env.goal_pos[0], env.goal_pos[1], "r*", label="Goal", markersize=15)
+    ax.legend()
+    ax.set_title(f"Step: {step}, Total Reward: {total_reward:.2f}")
+    plt.pause(0.1)  # Brief pause to update the plot
+
+
+# Main visualization loop
+def visualize_environment(use_matplotlib=True):
+    env = HelicopterControlEnv()
+    observation, info = env.reset(seed=42)
+
+    # Set up Matplotlib if used
+    if use_matplotlib:
+        plt.ion()  # Interactive mode for dynamic updates
+        fig, ax = plt.subplots()
+
+    total_reward = 0
+    for step in range(1000):
+        action = env.action_space.sample()  # Random policy
+        observation, reward, terminated, truncated, info = env.step(action)
+        total_reward += reward
+        # Render environment
+        if use_matplotlib:
+            plot_environment(env, step, total_reward, ax)
+        else:
+            env.render()  # Text-based rendering
+            time.sleep(0.1)  # Slow down for readability
+
+        # Reset if episode ends
+        if terminated or truncated:
+            print(
+                f"Episode ended. Terminated: {terminated}, Truncated: {truncated}, Total Reward: {total_reward}"
+            )
+            # observation, info = env.reset()
+            # if use_matplotlib:
+            #     plot_environment(env, step + 1, 0, ax)  # Show reset state
+            break
+
+        if use_matplotlib:
+            plt.draw()
+
+    env.close()
+    if use_matplotlib:
+        plt.ioff()
+        plt.show()
+
+
+# Run the visualization
+if __name__ == "__main__":
+    visualize_environment(use_matplotlib=True)  # Set to False for text-based rendering
