@@ -22,10 +22,10 @@ class HelicopterControlEnv(gym.Env):
     def reset(self, goal=None, seed=None, options=None):
         super().reset(seed=seed)  # Handle seeding
         # Initialize agent and goal in a smaller region (e.g., within 30x30)
-        self.agent_pos = np.array([np.random.randint(0, 30), np.random.randint(0, 30)])
+        self.agent_pos = np.array([np.random.randint(0, self.grid_size-1), np.random.randint(0, self.grid_size-1)])
         if goal is None:
             self.goal_pos = np.array(
-                [np.random.randint(0, 30), np.random.randint(0, 30)]
+                [np.random.randint(0, self.grid_size-1), np.random.randint(0, self.grid_size-1)]
             )
         else:
             self.goal_pos = np.array(goal)
