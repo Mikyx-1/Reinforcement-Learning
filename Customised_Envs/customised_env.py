@@ -10,13 +10,13 @@ class HelicopterControlEnv(gym.Env):
     def __init__(self):
         super().__init__()
         self.grid_size = 50
-        self.max_step_size = 150
-        self.action_space = spaces.Discrete(5)  # up, left, right, up-left, up-right
+        self.max_step_size = 300
+        self.action_space = spaces.Discrete(4)  # up, down, left, right
         self.observation_space = spaces.Box(
             low=0, high=self.grid_size - 1, shape=(4,), dtype=np.int32
         )
-        self.gravity = 3
-        self.step_size = 5
+        self.gravity = 0
+        self.step_size = 1
 
         self.agent_pos = np.array([0, 0])  # (x, y)
         self.goal_pos = np.array([0, 0])
@@ -32,6 +32,7 @@ class HelicopterControlEnv(gym.Env):
                 np.random.randint(0, self.grid_size - 1),
             ]
         )
+
         self.step_count = 0
         return self._get_obs(), {}
 
@@ -42,16 +43,14 @@ class HelicopterControlEnv(gym.Env):
         self.step_count += 1
         # old_agent_pos = self.agent_pos.copy()  # Store old position
 
-        if action == 0:  # thrust up
+        if action == 0:  # Up
             self.agent_pos[1] += self.step_size
-        elif action == 1:  # thrust left
+        elif action == 1:  # Down
+            self.agent_pos[1] -= self.step_size
+        elif action == 2:  # Left
             self.agent_pos[0] -= self.step_size
-        elif action == 2:  # thrust right
+        elif action == 3:  # Right
             self.agent_pos[0] += self.step_size
-        elif action == 3:  # thrust up-left
-            self.agent_pos += [-self.step_size, self.step_size]
-        elif action == 4:  # thrust up-right
-            self.agent_pos += [self.step_size, self.step_size]
 
         self.agent_pos[1] -= self.gravity
         self.agent_pos = np.clip(self.agent_pos, 0, self.grid_size - 1)
