@@ -10,7 +10,6 @@ from typing import List, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
-# Assume HelicopterControlEnv is defined elsewhere
 from customised_env import HelicopterControlEnv
 from torch import nn, optim
 from torch.distributions.categorical import Categorical
@@ -70,7 +69,7 @@ class ActorNetwork(nn.Module):
         self,
         obs_space_size: int,
         action_space_size: int,
-        grid_size: int = 50,
+        grid_size: int = 10,
         embed_dim: int = 128,
     ):
         super().__init__()
@@ -87,13 +86,13 @@ class ActorNetwork(nn.Module):
             embed_dim // 2
         ) * 2 + obs_space_size  # Agent and goal embeddings + raw obs
         self.network = nn.Sequential(
-            nn.Linear(input_dim, 256),
-            nn.LayerNorm(256),
+            nn.Linear(input_dim, 512),
+            nn.LayerNorm(512),
             nn.SiLU(),
-            nn.Linear(256, 256),
-            nn.LayerNorm(256),
+            nn.Linear(512, 512),
+            nn.LayerNorm(512),
             nn.SiLU(),
-            nn.Linear(256, action_space_size),
+            nn.Linear(512, action_space_size),
         )
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
@@ -121,7 +120,7 @@ class ActorNetwork(nn.Module):
 # Critic Network with Positional Embeddings
 ####################################
 class CriticNetwork(nn.Module):
-    def __init__(self, obs_space_size: int, grid_size: int = 50, embed_dim: int = 128):
+    def __init__(self, obs_space_size: int, grid_size: int = 10, embed_dim: int = 128):
         super().__init__()
         self.grid_size = grid_size
         self.embed_dim = embed_dim
@@ -132,13 +131,13 @@ class CriticNetwork(nn.Module):
         # Input size: agent embedding + goal embedding + raw obs
         input_dim = (embed_dim // 2) * 2 + obs_space_size
         self.network = nn.Sequential(
-            nn.Linear(input_dim, 256),
-            nn.LayerNorm(256),
+            nn.Linear(input_dim, 512),
+            nn.LayerNorm(512),
             nn.SiLU(),
-            nn.Linear(256, 256),
-            nn.LayerNorm(256),
+            nn.Linear(512, 512),
+            nn.LayerNorm(512),
             nn.SiLU(),
-            nn.Linear(256, 1),
+            nn.Linear(512, 1),
         )
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
@@ -209,7 +208,7 @@ class PPOTrainer:
             loss_clipped = clipped_ratio * gaes
             policy_loss = (
                 -torch.min(loss_unclipped, loss_clipped).mean()
-                - 0.01 * dist_entropy.mean()
+                - 0.1 * dist_entropy.mean()
             )
 
             policy_loss.backward()
@@ -296,72 +295,75 @@ def rollout(actor: nn.Module, critic: nn.Module, env, max_steps=1000):
     return train_data, ep_reward
 
 
-####################################
-# Main setup and training loop
-####################################
-env = HelicopterControlEnv()
-obs_space = env.observation_space.shape[0]
-action_space = env.action_space.n
+if __name__ == "__main__":
+    ####################################
+    # Main setup and training loop
+    ####################################
+    env = HelicopterControlEnv()
+    obs_space = env.observation_space.shape[0]
+    action_space = env.action_space.n
 
-print(f"obs_space: {obs_space}, action_space: {action_space}")
+    print(f"obs_space: {obs_space}, action_space: {action_space}")
 
-actor = ActorNetwork(obs_space, action_space).to(DEVICE)
-critic = CriticNetwork(obs_space).to(DEVICE)
+    actor = ActorNetwork(obs_space, action_space).to(DEVICE)
+    critic = CriticNetwork(obs_space).to(DEVICE)
 
-# Create a test rollout to verify
-train_data, reward = rollout(actor, critic, env)
-print("Test rollout complete. Reward:", reward)
-
-# Define training parameters
-n_episodes = 2000
-print_freq = 20
-
-ppo = PPOTrainer(
-    actor,
-    critic,
-    policy_lr=3e-4,
-    value_lr=1e-3,
-    target_kl_div=0.02,
-    max_policy_train_iters=5,
-    value_train_iters=5,
-)
-
-ep_rewards = []
-for episode_idx in count():
+    # Create a test rollout to verify
     train_data, reward = rollout(actor, critic, env)
-    ep_rewards.append(reward)
+    print("Test rollout complete. Reward:", reward)
 
-    # Shuffle data indices
-    permute_idxs = np.random.permutation(len(train_data[0]))
+    # Define training parameters
+    n_episodes = 2000
+    print_freq = 20
 
-    # For actor training, stack observations
-    obs_np = np.stack(train_data[0])
-    obs_tensor = torch.tensor(obs_np[permute_idxs], dtype=torch.float32, device=DEVICE)
-    acts_tensor = torch.tensor(
-        train_data[1][permute_idxs], dtype=torch.int64, device=DEVICE
-    )
-    gaes_tensor = torch.tensor(
-        train_data[3][permute_idxs], dtype=torch.float32, device=DEVICE
-    )
-    act_log_probs_tensor = torch.tensor(
-        train_data[4][permute_idxs], dtype=torch.float32, device=DEVICE
+    ppo = PPOTrainer(
+        actor,
+        critic,
+        policy_lr=3e-4,
+        value_lr=1e-3,
+        target_kl_div=0.02,
+        max_policy_train_iters=5,
+        value_train_iters=5,
     )
 
-    # For critic training, compute returns
-    returns = discount_rewards(train_data[2])[permute_idxs]
-    returns_tensor = torch.tensor(returns, dtype=torch.float32, device=DEVICE)
+    ep_rewards = []
+    for episode_idx in count():
+        train_data, reward = rollout(actor, critic, env)
+        ep_rewards.append(reward)
 
-    # Train actor and critic
-    ppo.train_policy(obs_tensor, acts_tensor, act_log_probs_tensor, gaes_tensor)
-    ppo.train_value(obs_tensor, returns_tensor)
+        # Shuffle data indices
+        permute_idxs = np.random.permutation(len(train_data[0]))
 
-    if (episode_idx + 1) % print_freq == 0:
-        print(
-            "Episode {} | Avg Reward {:.1f}".format(
-                episode_idx + 1, np.mean(ep_rewards[-print_freq:])
-            )
+        # For actor training, stack observations
+        obs_np = np.stack(train_data[0])
+        obs_tensor = torch.tensor(
+            obs_np[permute_idxs], dtype=torch.float32, device=DEVICE
+        )
+        acts_tensor = torch.tensor(
+            train_data[1][permute_idxs], dtype=torch.int64, device=DEVICE
+        )
+        gaes_tensor = torch.tensor(
+            train_data[3][permute_idxs], dtype=torch.float32, device=DEVICE
+        )
+        act_log_probs_tensor = torch.tensor(
+            train_data[4][permute_idxs], dtype=torch.float32, device=DEVICE
         )
 
-    if (episode_idx + 1) % 5000 == 0:
-        print("Start saving actor's weights ")
-        torch.save(actor.state_dict(), "customised_env_actor.pt")
+        # For critic training, compute returns
+        returns = discount_rewards(train_data[2])[permute_idxs]
+        returns_tensor = torch.tensor(returns, dtype=torch.float32, device=DEVICE)
+
+        # Train actor and critic
+        ppo.train_policy(obs_tensor, acts_tensor, act_log_probs_tensor, gaes_tensor)
+        ppo.train_value(obs_tensor, returns_tensor)
+
+        if (episode_idx + 1) % print_freq == 0:
+            print(
+                "Episode {} | Avg Reward {:.1f}".format(
+                    episode_idx + 1, np.mean(ep_rewards[-print_freq:])
+                )
+            )
+
+        if (episode_idx + 1) % 200 == 0:
+            print("Start saving actor's weights ")
+            torch.save(actor.state_dict(), "customised_env_actor.pt")

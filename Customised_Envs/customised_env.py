@@ -9,8 +9,8 @@ from gymnasium import spaces
 class HelicopterControlEnv(gym.Env):
     def __init__(self):
         super().__init__()
-        self.grid_size = 50
-        self.max_step_size = 300
+        self.grid_size = 10
+        self.max_step_size = 40
         self.action_space = spaces.Discrete(4)  # up, down, left, right
         self.observation_space = spaces.Box(
             low=0, high=self.grid_size - 1, shape=(4,), dtype=np.int32
@@ -22,18 +22,22 @@ class HelicopterControlEnv(gym.Env):
         self.goal_pos = np.array([0, 0])
         self.step_count = 0
 
+        self.goal_list = [
+            [x, y] for y in range(self.grid_size) for x in range(self.grid_size)
+        ]
+        self.goal_index = 0
+
     def reset(self, goal=None, seed=None, options=None):
         super().reset(seed=seed)
         self.agent_pos = np.array([0, 0])
-
-        self.goal_pos = np.array(
-            [
-                np.random.randint(0, self.grid_size - 1),
-                np.random.randint(0, self.grid_size - 1),
-            ]
-        )
-
         self.step_count = 0
+
+        if goal is None:
+            self.goal_pos = np.array(self.goal_list[self.goal_index], dtype=np.int32)
+            self.goal_index = (self.goal_index + 1) % len(self.goal_list)
+        else:
+            self.goal_pos = np.array(goal, dtype=np.int32)
+
         return self._get_obs(), {}
 
     def _get_obs(self):
@@ -41,7 +45,6 @@ class HelicopterControlEnv(gym.Env):
 
     def step(self, action):
         self.step_count += 1
-        # old_agent_pos = self.agent_pos.copy()  # Store old position
 
         if action == 0:  # Up
             self.agent_pos[1] += self.step_size
