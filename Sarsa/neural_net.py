@@ -1,5 +1,5 @@
 import torch
-import gym
+import gymnasium as gym
 from torch import nn, optim
 from collections import namedtuple, deque
 import numpy as np
