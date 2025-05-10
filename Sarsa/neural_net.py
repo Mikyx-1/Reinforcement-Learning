@@ -1,8 +1,9 @@
-import torch
+from collections import deque, namedtuple
+
 import gymnasium as gym
-from torch import nn, optim
-from collections import namedtuple, deque
 import numpy as np
+import torch
+from torch import nn, optim
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 EPSILON = 0.5
@@ -12,8 +13,10 @@ ALPHA = 0.01
 GAMMA = 0.99
 env = gym.make("Taxi-v3")
 
-Transition = namedtuple("Transition",
-                        ("state", "action", "reward", "next_state", "next_action"))
+Transition = namedtuple(
+    "Transition", ("state", "action", "reward", "next_state", "next_action")
+)
+
 
 class ReplayMemory(object):
     def __init__(self, capacity=10000):
@@ -64,7 +67,9 @@ def rollout():
 
     while not done:
         next_state, reward, terminated, truncated, _ = env.step(action)
-        next_state = torch.as_tensor(next_state, device=DEVICE, dtype=torch.float32).view(-1, 1)
+        next_state = torch.as_tensor(
+            next_state, device=DEVICE, dtype=torch.float32
+        ).view(-1, 1)
         done = terminated or truncated
 
         if np.random.uniform(0, 1) < EPSILON:
@@ -89,16 +94,20 @@ def train_policy(memory):
     transitions = Transition(*zip(*memory.memory))
     state_batch = torch.cat(transitions.state).to(DEVICE)
     action_batch = torch.tensor(transitions.action, device=DEVICE).view(-1, 1)
-    reward_batch = torch.tensor(transitions.reward, device=DEVICE, dtype=torch.float32).view(-1, 1)
+    reward_batch = torch.tensor(
+        transitions.reward, device=DEVICE, dtype=torch.float32
+    ).view(-1, 1)
     next_state_batch = torch.cat(transitions.next_state).view(-1, 1).to(DEVICE)
     next_action_batch = torch.tensor(transitions.next_action, device=DEVICE).view(-1, 1)
 
     state_action_values = policy(state_batch).gather(1, action_batch)
-    next_state_action_values = policy(next_state_batch).gather(1, next_action_batch)
 
-    expected_state_action_values = reward_batch + GAMMA * next_state_action_values
+    with torch.no_grad():
+        next_state_action_values = policy(next_state_batch).gather(1, next_action_batch)
 
-    loss = nn.functional.huber_loss(state_action_values, expected_state_action_values.detach())
+        expected_state_action_values = reward_batch + GAMMA * next_state_action_values
+
+    loss = nn.functional.huber_loss(state_action_values, expected_state_action_values)
 
     optimizer.zero_grad()
     loss.backward()
