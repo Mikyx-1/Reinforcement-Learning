@@ -5,6 +5,11 @@ import numpy as np
 import torch
 from torch import nn, optim
 
+# Set random seeds for reproducibility
+# random.seed(42)
+np.random.seed(42)
+torch.manual_seed(42)
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 EPSILON = 0.5
 EPSILON_DECAY = 0.995
@@ -14,7 +19,7 @@ GAMMA = 0.99
 env = gym.make("Taxi-v3")
 
 Transition = namedtuple(
-    "Transition", ("state", "action", "reward", "next_state", "next_action")
+    "Transition", ("state", "action", "reward", "next_state", "next_action", "done")
 )
 
 
@@ -77,7 +82,7 @@ def rollout():
         else:
             next_action = policy(next_state).argmax(-1).item()
 
-        memory.push(state, action, reward, next_state, next_action)
+        memory.push(state, action, reward, next_state, next_action, done)
 
         state = next_state
         action = next_action
@@ -99,13 +104,18 @@ def train_policy(memory):
     ).view(-1, 1)
     next_state_batch = torch.cat(transitions.next_state).view(-1, 1).to(DEVICE)
     next_action_batch = torch.tensor(transitions.next_action, device=DEVICE).view(-1, 1)
+    done_batch = torch.tensor(transitions.done, device=DEVICE, dtype=torch.float).view(
+        -1, 1
+    )
 
     state_action_values = policy(state_batch).gather(1, action_batch)
 
     with torch.no_grad():
         next_state_action_values = policy(next_state_batch).gather(1, next_action_batch)
 
-        expected_state_action_values = reward_batch + GAMMA * next_state_action_values
+        expected_state_action_values = (
+            reward_batch + GAMMA * next_state_action_values * (1 - done_batch)
+        )
 
     loss = nn.functional.huber_loss(state_action_values, expected_state_action_values)
 
