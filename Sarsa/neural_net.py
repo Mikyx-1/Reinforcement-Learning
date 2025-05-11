@@ -108,7 +108,7 @@ def rollout():
         next_state = torch.as_tensor(next_state, device=DEVICE, dtype=torch.long).view(
             -1, 1
         )
-        done = terminated or truncated
+        done = terminated
 
         next_action = select_action(next_state, EPSILON)
 
@@ -157,8 +157,7 @@ def train_policy(memory):
     optimizer.step()
 
 
-num_episodes = 100000
-for episode in range(num_episodes):
+for episode in range(EPISODES):
     total_rewards = rollout()
 
     if (episode + 1) % 10 == 0:
