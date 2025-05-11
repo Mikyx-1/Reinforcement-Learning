@@ -12,12 +12,15 @@ np.random.seed(42)
 torch.manual_seed(42)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-EPSILON = 0.5
-EPSILON_DECAY = 0.995
-EPSILON_MIN = 0.1
-ALPHA = 0.01
-GAMMA = 0.99
-BATCH_SIZE = 64
+LEARNING_RATE = 0.001
+GAMMA = 0.99  # Discount factor
+EPSILON_START = 1.0  # Initial exploration rate
+EPSILON = EPSILON_START
+EPSILON_END = 0.01  # Final exploration rate
+EPSILON_DECAY = 0.995  # Decay rate for exploration
+EPISODES = 1000  # Number of episodes to train on
+BATCH_SIZE = 64  # Batch size for training
+MEMORY_SIZE = 10000  # Size of replay memory
 env = gym.make("Taxi-v3")
 
 Transition = namedtuple(
@@ -73,8 +76,9 @@ class DeepQNetwork(nn.Module):
 
 
 policy = DeepQNetwork(env.observation_space.n, env.action_space.n).to(DEVICE)
-optimizer = optim.Adam(policy.parameters(), lr=ALPHA)
-memory = ReplayMemory()
+optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
+memory = ReplayMemory(MEMORY_SIZE)
+criterion = nn.MSELoss()
 
 
 # Epsilon-greedy action selection
@@ -116,7 +120,8 @@ def rollout():
 
         train_policy(memory)
 
-    EPSILON = max(EPSILON * EPSILON_DECAY, EPSILON_MIN)
+    EPSILON = max(EPSILON_END, EPSILON * EPSILON_DECAY)
+
     return total_rewards
 
 
@@ -145,7 +150,7 @@ def train_policy(memory):
             reward_batch + GAMMA * next_state_action_values * (1 - done_batch)
         )
 
-    loss = nn.functional.huber_loss(state_action_values, expected_state_action_values)
+    loss = criterion(state_action_values, expected_state_action_values)
 
     optimizer.zero_grad()
     loss.backward()
