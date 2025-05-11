@@ -1,3 +1,4 @@
+import random
 from collections import deque, namedtuple
 
 import gymnasium as gym
@@ -6,7 +7,7 @@ import torch
 from torch import nn, optim
 
 # Set random seeds for reproducibility
-# random.seed(42)
+random.seed(42)
 np.random.seed(42)
 torch.manual_seed(42)
 
@@ -56,17 +57,25 @@ optimizer = optim.Adam(policy.parameters(), lr=ALPHA)
 memory = ReplayMemory()
 
 
-@torch.inference_mode()
+# Epsilon-greedy action selection
+def select_action(state, epsilon):
+    if random.random() > epsilon:
+        with torch.no_grad():
+            # Choose the action with highest Q-value
+            q_values = policy(state)
+            return torch.argmax(q_values).item()
+    else:
+        # Choose a random action
+        return random.randrange(env.action_space.n)
+
+
 def rollout():
     global EPSILON
     state, _ = env.reset()
     done = False
 
     state = torch.as_tensor(state, device=DEVICE, dtype=torch.float32).view(-1, 1)
-    if np.random.uniform(0, 1) < EPSILON:
-        action = env.action_space.sample()
-    else:
-        action = policy(state).argmax(-1).item()
+    action = select_action(state, EPSILON)
 
     total_rewards = 0
 
@@ -77,10 +86,7 @@ def rollout():
         ).view(-1, 1)
         done = terminated or truncated
 
-        if np.random.uniform(0, 1) < EPSILON:
-            next_action = env.action_space.sample()
-        else:
-            next_action = policy(next_state).argmax(-1).item()
+        next_action = select_action(next_state, EPSILON)
 
         memory.push(state, action, reward, next_state, next_action, done)
 
