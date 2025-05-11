@@ -17,6 +17,7 @@ EPSILON_DECAY = 0.995
 EPSILON_MIN = 0.1
 ALPHA = 0.01
 GAMMA = 0.99
+BATCH_SIZE = 64
 env = gym.make("Taxi-v3")
 
 Transition = namedtuple(
@@ -37,22 +38,41 @@ class ReplayMemory(object):
     def push(self, *args):
         self.memory.append(Transition(*args))
 
-
-class Policy(nn.Module):
-    def __init__(self, n_observations: int, n_actions: int):
-        super().__init__()
-        self.layer1 = nn.Linear(n_observations, 128)
-        self.layer2 = nn.Linear(128, 128)
-        self.layer3 = nn.Linear(128, n_actions)
-        self.relu = nn.ReLU()
-
-    def forward(self, x: torch.Tensor):
-        x = self.relu(self.layer1(x))
-        x = self.relu(self.layer2(x))
-        return self.layer3(x)
+    def sample(self, batch_size: int):
+        return random.sample(self.memory, batch_size)
 
 
-policy = Policy(1, env.action_space.n).to(DEVICE)
+class DeepQNetwork(nn.Module):
+    def __init__(self, state_size, action_size):
+        super(DeepQNetwork, self).__init__()
+        # One-hot encoding for discrete state
+        self.state_size = state_size
+        self.action_size = action_size
+
+        # Neural network layers
+        self.fc1 = nn.Linear(state_size, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, action_size)
+
+    def forward(self, state):
+        # Convert state index to one-hot vector
+        if isinstance(state, int) or (
+            isinstance(state, torch.Tensor) and state.dim() == 0
+        ):
+            x = torch.zeros(self.state_size, device=DEVICE)
+            x[state] = 1.0
+        else:  # Batch processing
+            x = torch.zeros(len(state), self.state_size, device=DEVICE)
+            for i, s in enumerate(state):
+                x[i, s] = 1.0
+
+        # Forward pass through network
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        return self.fc3(x)
+
+
+policy = DeepQNetwork(env.observation_space.n, env.action_space.n).to(DEVICE)
 optimizer = optim.Adam(policy.parameters(), lr=ALPHA)
 memory = ReplayMemory()
 
@@ -74,16 +94,16 @@ def rollout():
     state, _ = env.reset()
     done = False
 
-    state = torch.as_tensor(state, device=DEVICE, dtype=torch.float32).view(-1, 1)
+    state = torch.as_tensor(state, device=DEVICE, dtype=torch.long).view(-1, 1)
     action = select_action(state, EPSILON)
 
     total_rewards = 0
 
     while not done:
         next_state, reward, terminated, truncated, _ = env.step(action)
-        next_state = torch.as_tensor(
-            next_state, device=DEVICE, dtype=torch.float32
-        ).view(-1, 1)
+        next_state = torch.as_tensor(next_state, device=DEVICE, dtype=torch.long).view(
+            -1, 1
+        )
         done = terminated or truncated
 
         next_action = select_action(next_state, EPSILON)
@@ -94,15 +114,17 @@ def rollout():
         action = next_action
         total_rewards += reward
 
+        train_policy(memory)
+
     EPSILON = max(EPSILON * EPSILON_DECAY, EPSILON_MIN)
     return total_rewards
 
 
 def train_policy(memory):
-    if len(memory) == 0:
+    if len(memory) < BATCH_SIZE:
         return
 
-    transitions = Transition(*zip(*memory.memory))
+    transitions = Transition(*zip(*memory.sample(BATCH_SIZE)))
     state_batch = torch.cat(transitions.state).to(DEVICE)
     action_batch = torch.tensor(transitions.action, device=DEVICE).view(-1, 1)
     reward_batch = torch.tensor(
@@ -133,8 +155,6 @@ def train_policy(memory):
 num_episodes = 100000
 for episode in range(num_episodes):
     total_rewards = rollout()
-    train_policy(memory)
-    memory.reset()
 
-    if (episode + 1) % 100 == 0:
+    if (episode + 1) % 10 == 0:
         print(f"Episode {episode + 1} completed. Total_rewards: {total_rewards}")
