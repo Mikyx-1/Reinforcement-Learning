@@ -1,0 +1,27 @@
+# REINFORCE on CartPole-v1
+# ─────────────────────────────────────────
+# Solve criterion: mean return ≥ 475 over 20 consecutive eval episodes
+
+env_id: CartPole-v1
+seed: 42
+
+# Agent
+agent:
+  hidden_dims: [64, 64]
+  lr: 3.0e-3
+  gamma: 0.99
+  entropy_coef: 0.01       # small entropy bonus keeps exploration alive
+
+# Training
+training:
+  max_steps: 150_000
+  eval_interval: 50        # eval every 50 episodes
+  save_interval: 200
+  checkpoint_dir: results/checkpoints/reinforce_cartpole
+  print_freq: 20
+
+# Logging
+logging:
+  log_dir: results/runs/reinforce_cartpole
+  use_tb: true
+  use_wandb: false
