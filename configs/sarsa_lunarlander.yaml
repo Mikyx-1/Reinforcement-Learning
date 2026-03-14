@@ -1,0 +1,60 @@
+# SARSA on LunarLander-v3
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ 200 over 100 consecutive episodes
+# Expected        : ~500k–1M steps  (SARSA is significantly slower than
+#                   DQN on complex envs — use mainly for comparison/ablation)
+# Action space    : Discrete(4)
+# Loop            : train_sarsa() — on-policy TD, no replay buffer
+
+env_id: LunarLander-v3
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [256, 256]   # same as dqn_lunarlander.yaml for fair comparison
+
+  lr: 5.0e-4
+  gamma: 0.99
+
+  # ε-greedy exploration schedule
+  # Longer decay than CartPole — LunarLander needs sustained exploration
+  # to discover the landing strategy. Decaying too fast leads to premature
+  # convergence to a hovering policy (return ≈ 0).
+  eps_start: 1.0
+  eps_end: 0.05
+  eps_decay_steps: 100_000  # 2× longer than DQN's 50k — no replay to reuse data
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 1_000_000
+  eval_interval: 20
+  save_interval: 100
+  checkpoint_dir: results/checkpoints/sarsa_lunarlander
+  log_every: 200            # log update metrics every 200 steps
+  print_freq: 10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/sarsa_lunarlander
+  use_tb: true
+  use_wandb: false
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Tuning guidance:
+#   - If episode return stagnates near 0 → raise eps_decay_steps to 200_000
+#   - If loss grows unstably → lower lr to 1e-4 or add gradient clipping
+#     (already at max_norm=10 in agent, but can lower in agent constructor)
+#   - If agent learns to hover but never lands → eps_end is too high;
+#     try eps_end: 0.01 to force more greedy behaviour at convergence
+#
+# Compared to dqn_lunarlander.yaml:
+#   - eps_decay_steps 100k vs 50k: SARSA needs 2× more exploration steps
+#     because each transition is used only once (no replay)
+#   - max_steps 1M vs 500k: roughly equivalent wall-clock convergence
+#   - No warmup, no buffer, no target network
+#
+# Academic value of this config:
+#   Running both dqn_lunarlander and sarsa_lunarlander with the same seed
+#   and hidden_dims produces a clean on-policy vs off-policy comparison
+#   on a non-trivial environment. The learning curves tell a clear story:
+#   DQN converges faster; SARSA is smoother but slower.

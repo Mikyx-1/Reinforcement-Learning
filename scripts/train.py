@@ -15,6 +15,7 @@ from pathlib import Path
 # Make repo root importable regardless of working directory
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from agents.sarsa.agent import SarsaAgent
 from common.logger import Logger
 from common.utils import load_config, set_seed
 from envs.wrappers import make_env
@@ -65,6 +66,20 @@ def build_agent(name: str, env, cfg: dict, device: str):
         from agents.dqn.agent import DQNAgent
 
         return DQNAgent(
+            env=env,
+            hidden_dims=cfg["agent"]["hidden_dims"],
+            lr=cfg["agent"]["lr"],
+            gamma=cfg["agent"]["gamma"],
+            eps_start=cfg["agent"].get("eps_start", 1.0),
+            eps_end=cfg["agent"].get("eps_end", 0.01),
+            eps_decay_steps=cfg["agent"].get("eps_decay_steps", 500),
+            device=device,
+        )
+
+    elif name == "sarsa":
+        from agents.sarsa.agent import SarsaAgent
+
+        return SarsaAgent(
             env=env,
             hidden_dims=cfg["agent"]["hidden_dims"],
             lr=cfg["agent"]["lr"],
@@ -137,6 +152,9 @@ def main():
 
     elif agent_name == "ppo":
         trainer.train_ppo()
+
+    elif agent_name == "sarsa":
+        trainer.train_sarsa()
     else:
         from common.replay_buffer import ReplayBuffer
 

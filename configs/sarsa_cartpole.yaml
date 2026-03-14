@@ -1,0 +1,58 @@
+# SARSA on CartPole-v1
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ 475 over 20 eval episodes
+# Expected        : ~100–300 episodes  (slower than DQN — no replay buffer,
+#                   one gradient step per env step, on-policy TD)
+# Loop            : train_sarsa() — carries a_{t+1} forward each step
+
+env_id: CartPole-v1
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [128, 128]   # same as DQN for fair comparison
+
+  lr: 1.0e-3
+  gamma: 0.99
+
+  # ε-greedy exploration schedule
+  # SARSA note: ε controls BOTH exploration AND the TD target.
+  # The a' used in  Q(s', a')  is sampled from the ε-greedy policy,
+  # so a higher ε makes the target more conservative (penalises exploration).
+  eps_start: 1.0
+  eps_end: 0.05
+  eps_decay_steps: 10_000
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 150_000        # more steps than DQN to compensate for no replay
+  eval_interval: 50
+  save_interval: 200
+  checkpoint_dir: results/checkpoints/sarsa_cartpole
+  log_every: 100            # log update metrics every 100 steps (SARSA updates every step)
+  print_freq: 20
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/sarsa_cartpole
+  use_tb: true
+  use_wandb: false
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Key TensorBoard diagnostics:
+#   train/epsilon  → anneal from 1.0 to 0.05 over first 10k steps
+#   train/loss     → SARSA loss is typically smoother than DQN (no replay variance)
+#   train/mean_q   → should rise, but will be slightly lower than DQN's
+#                    (SARSA Q-values reflect the ε-greedy policy, not the optimal one)
+#   eval/mean_return → greedy evaluation (ε=0), primary metric
+#
+# Compared to DQN (dqn_cartpole.yaml):
+#   - No warmup_steps: SARSA learns from the very first step (no buffer to fill)
+#   - No buffer_size: SARSA cannot use a replay buffer (would violate on-policy constraint)
+#   - No target_update_freq: single Q-network, no target network needed
+#   - Higher max_steps: compensates for not reusing data (each transition used once)
+#
+# Why SARSA is safer in some environments:
+#   In CartPole the difference is subtle, but in cliff-walking environments
+#   SARSA avoids dangerous edges because its Q-values account for the ε probability
+#   of accidentally stepping off. DQN's Q* ignores this exploration risk.
