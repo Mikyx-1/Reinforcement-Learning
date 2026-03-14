@@ -1,0 +1,64 @@
+# PPO-Clip on CartPole-v1
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ 475 over 20 eval episodes
+# Expected        : ~100–200k steps  (fastest of the three on-policy algos)
+# Loop            : collect T=512 steps → GAE → K=10 epochs × mini-batches
+
+env_id: CartPole-v1
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  # Separate actor and critic MLPs (no shared trunk — see agents/ppo/README.md)
+  hidden_dims: [64, 64]
+
+  lr: 3.0e-4                # Adam lr; lower than AC because of K-epoch reuse
+  gamma: 0.99
+
+  # GAE
+  lam: 0.95                 # λ; 0.95 balances bias/variance well in practice
+
+  # Clipping
+  clip_eps: 0.2             # ε; tighten to 0.1 for more conservative updates
+
+  # Update schedule
+  n_epochs: 10              # K update epochs per rollout
+  batch_size: 64            # mini-batch size within each epoch
+  rollout_steps: 512        # T env steps collected before each update
+                             # (smaller than default 2048 — CartPole episodes short)
+
+  # Loss coefficients
+  vf_coef: 0.5
+  ent_coef: 0.01
+
+  # Stability
+  max_grad_norm: 0.5
+  clip_value_loss: true     # apply PPO value clipping (original paper appendix)
+  target_kl: 0.015          # early-stop epoch loop if approx KL > 1.5 × target_kl
+                             # set to null to disable
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 200_000
+  eval_interval: 20         # evaluate every 20 completed episodes
+  save_interval: 100
+  checkpoint_dir: results/checkpoints/ppo_cartpole
+  print_freq: 10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/ppo_cartpole
+  use_tb: true
+  use_wandb: false
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Key TensorBoard diagnostics:
+#   approx_kl      → healthy: [0.005, 0.02]; spike = lr too high
+#   clip_fraction  → healthy: [0.05, 0.20]; always high = reduce lr or clip_eps
+#   explained_var  → should rise towards 1.0 as critic improves
+#   entropy        → slow decay is healthy; sudden collapse → raise ent_coef
+#
+# Compared to actor_critic_cartpole.yaml:
+#   - K=10 epochs: each sample used 10× — much better sample efficiency
+#   - clip_eps=0.2: prevents catastrophic updates that can destabilise A2C
+#   - lam=0.95 GAE vs raw A_t = R_t − V(s): lower variance advantages
