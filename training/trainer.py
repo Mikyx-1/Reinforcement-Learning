@@ -133,6 +133,136 @@ class Trainer:
         print("[Trainer] Training complete.")
 
     # ------------------------------------------------------------------
+    # Actor-Critic training  (per-episode rollout + single update)
+    # ------------------------------------------------------------------
+
+    def train_actor_critic(self) -> None:
+        """
+        Collect one full episode, compute Monte-Carlo returns, single update.
+        Same loop structure as REINFORCE; the agent handles the V(s) baseline.
+        """
+        print(f"[Trainer] Starting Actor-Critic training for {self.max_steps} steps.")
+        buffer = RolloutBuffer()
+
+        while self.global_step < self.max_steps:
+            obs, _ = self.env.reset()
+            buffer.clear()
+            episode_return = 0.0
+            done = False
+
+            while not done:
+                action, log_prob = self._select_action_with_logprob(obs)
+                env_action = int(action) if hasattr(action, "__int__") else action
+                next_obs, reward, terminated, truncated, info = self.env.step(
+                    env_action
+                )
+                done = terminated or truncated
+                buffer.push(obs, action, log_prob, float(reward), done)
+                obs = next_obs
+                episode_return += float(reward)
+                self.global_step += 1
+                self.agent.on_step_end(self.global_step)
+
+            self.episode += 1
+            batch = buffer.get(gamma=self.gamma, device=str(self.agent.device))
+            metrics = self.agent.update(batch)
+
+            self.episode_returns.append(episode_return)
+            self.agent.on_episode_end(self.episode, info)
+            self.logger.log(
+                {
+                    "train/episode_return": episode_return,
+                    "train/episode_length": len(buffer),
+                    **{f"train/{k}": v for k, v in metrics.items()},
+                },
+                step=self.global_step,
+            )
+            if self.episode % self.eval_interval == 0:
+                self._eval_and_log()
+            if self.episode % self.save_interval == 0:
+                self._save_checkpoint()
+
+        self.logger.close()
+        print("[Trainer] Actor-Critic training complete.")
+
+    # ------------------------------------------------------------------
+    # PPO training  (fixed-T rollout, K-epoch update)
+    # ------------------------------------------------------------------
+
+    def train_ppo(self) -> None:
+        """
+        Collect exactly T env steps (may span episodes), compute GAE,
+        then run K update epochs over shuffled mini-batches.
+        """
+        from agents.ppo.agent import PPOAgent
+
+        assert isinstance(self.agent, PPOAgent), "train_ppo() requires a PPOAgent."
+
+        T = self.agent.rollout_steps
+        print(
+            f"[Trainer] Starting PPO training for {self.max_steps} steps "
+            f"(T={T}, K={self.agent.n_epochs}, batch={self.agent.batch_size})."
+        )
+
+        obs, _ = self.env.reset()
+        episode_return = 0.0
+        episode_length = 0
+        terminated = truncated = False
+
+        while self.global_step < self.max_steps:
+
+            # Collect T steps
+            for _ in range(T):
+                action, log_prob = self.agent.select_action(obs, deterministic=False)
+                env_action = int(action) if self.agent.discrete else action
+                next_obs, reward, terminated, truncated, info = self.env.step(
+                    env_action
+                )
+                done = terminated or truncated
+
+                self.agent.collect_step(obs, action, log_prob, float(reward), done)
+                obs = next_obs
+                episode_return += float(reward)
+                episode_length += 1
+                self.global_step += 1
+                self.agent.on_step_end(self.global_step)
+
+                if done:
+                    self.episode += 1
+                    self.episode_returns.append(episode_return)
+                    self.agent.on_episode_end(self.episode, info)
+                    self.logger.log(
+                        {
+                            "train/episode_return": episode_return,
+                            "train/episode_length": episode_length,
+                        },
+                        step=self.global_step,
+                    )
+                    if self.episode % self.eval_interval == 0:
+                        self._eval_and_log()
+                    if self.episode % self.save_interval == 0:
+                        self._save_checkpoint()
+                    obs, _ = self.env.reset()
+                    episode_return = 0.0
+                    episode_length = 0
+                    terminated = truncated = False
+
+            # Bootstrap + GAE
+            self.agent.finish_rollout(
+                last_obs=obs, last_done=bool(terminated or truncated)
+            )
+
+            # K-epoch update
+            metrics = self.agent.update()
+            self.logger.log(
+                {f"train/{k}": v for k, v in metrics.items()},
+                step=self.global_step,
+            )
+
+        self.logger.close()
+        print("[Trainer] PPO training complete.")
+
+    # ------------------------------------------------------------------
     # Off-policy training  (DQN, DDPG, SAC, TD3)
     # ------------------------------------------------------------------
 

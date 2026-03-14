@@ -1,0 +1,44 @@
+# Actor-Critic (A2C) on LunarLanderContinuous-v2
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ 200 over 100 consecutive episodes
+# Expected        : ~600–1 200 episodes
+# Action space    : Box(2,) → uses GaussianActorCritic (shared trunk)
+# Note            : Continuous control is harder for A2C due to the
+#                   high-variance Gaussian policy gradient. PPO is
+#                   significantly more reliable here. Use this config
+#                   mainly for comparison / ablation purposes.
+
+env_id: LunarLanderContinuous-v3
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [256, 256]   # larger trunk for continuous obs+act
+  lr: 5.0e-4
+  gamma: 0.99
+
+  vf_coef: 0.5
+  ent_coef: 0.001           # lower than CartPole — continuous policies
+                             # explore naturally via the Gaussian std
+  max_grad_norm: 0.5
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 1_000_000
+  eval_interval: 20
+  save_interval: 100
+  checkpoint_dir: results/checkpoints/actor_critic_lunarlander
+  print_freq: 10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/actor_critic_lunarlander
+  use_tb: true
+  use_wandb: false
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Tuning guidance for continuous envs with Actor-Critic:
+#   - If critic_loss stays high → try lr: 1e-3 or hidden_dims: [256,256,256]
+#   - If policy collapses early → raise ent_coef to 0.005
+#   - If training is unstable → lower lr to 2e-4 or reduce max_grad_norm to 0.3
+# For production-quality continuous control, prefer PPO (ppo_lunarlander.yaml).

@@ -1,0 +1,45 @@
+# Actor-Critic (A2C) on CartPole-v1
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ 475 over 20 eval episodes
+# Expected        : ~150–300 episodes  (faster than REINFORCE, thanks to
+#                   the value baseline reducing gradient variance)
+# Loop            : one full episode → one gradient update (no reuse)
+
+env_id: CartPole-v1
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [128, 128]   # shared trunk + actor/critic heads
+  lr: 7.0e-4                # RMSprop LR (original A3C recommendation)
+  gamma: 0.99
+
+  # Loss coefficients
+  vf_coef: 0.5              # weight on critic (value) loss
+  entropy_coef: 0.01            # entropy bonus — keeps exploration alive
+
+  # Stability
+  max_grad_norm: 0.5        # global gradient clipping
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 150_000
+  eval_interval: 50         # evaluate every 50 completed episodes
+  save_interval: 200
+  checkpoint_dir: results/checkpoints/actor_critic_cartpole
+  print_freq: 20
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/actor_critic_cartpole
+  use_tb: true
+  use_wandb: false
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Compared to REINFORCE (reinforce_cartpole.yaml):
+#   - Same loop structure (per-episode rollout)
+#   - Lower lr (7e-4 vs 3e-3): shared trunk is more sensitive to lr
+#   - Added vf_coef: critic loss term drives V(s) towards R_t
+#   - hidden_dims [128,128] vs [64,64]: extra capacity for shared trunk
+# Key diagnostic: watch `train/critic_loss` drop and `train/entropy` decay
+# slowly — a sudden entropy collapse means ent_coef should be raised.
