@@ -152,10 +152,12 @@ class DQNAgent(BaseAgent):
             metrics: {'loss': float, 'epsilon': float, 'mean_q': float}
         """
         obs = batch["obs"]
-        actions = batch["actions"].long().squeeze(1)  # (B,) int64
-        rewards = batch["rewards"]  # (B, 1)
+        actions = (
+            batch["actions"].long().reshape(-1)
+        )  # (B,) int64 — safe for (B,) or (B,1)
+        rewards = batch["rewards"].reshape(-1, 1)  # (B, 1)
         next_obs = batch["next_obs"]
-        dones = batch["dones"]  # (B, 1)
+        dones = batch["dones"].reshape(-1, 1)  # (B, 1)
 
         # ── Current Q-values for taken actions ──────────────────────────────
         q_values = self.q_net(obs)  # (B, act_dim)
