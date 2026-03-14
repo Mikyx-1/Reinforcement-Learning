@@ -1,0 +1,11 @@
+gymnasium>=0.29.0
+torch>=2.0.0
+numpy>=1.24.0
+pyyaml>=6.0
+tensorboard>=2.13.0
+
+# Optional
+wandb>=0.15.0          # experiment tracking
+matplotlib>=3.7.0      # plotting in notebooks
+pandas>=2.0.0          # results analysis
+pytest>=7.4.0          # testing
