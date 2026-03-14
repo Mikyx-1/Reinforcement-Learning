@@ -283,9 +283,16 @@ class Trainer:
                 action = self.env.action_space.sample()
             else:
                 action = self.agent.select_action(obs, deterministic=False)
-                # Flatten in case agent returns a 1-D array
-                if hasattr(action, "__len__") and len(action) == 1:
-                    action = action[0]
+                # Unwrap to a plain Python scalar for gym.step():
+                #   - 0-d numpy array (DQN returns np.array(2))  → .item()
+                #   - 1-d single-element array (continuous agents) → [0]
+                #   - plain int / float → leave as-is
+                if hasattr(action, "ndim"):  # numpy array
+                    action = (
+                        action.item()
+                        if action.ndim == 0
+                        else (action[0] if action.shape == (1,) else action)
+                    )
 
             next_obs, reward, terminated, truncated, info = self.env.step(action)
             done = terminated or truncated
