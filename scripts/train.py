@@ -36,6 +36,18 @@ def build_agent(name: str, env, cfg: dict, device: str):
             entropy_coef=cfg["agent"].get("entropy_coef", 0.0),
             device=device,
         )
+    elif name == "actor":
+        from agents.actor_critic.agent import ActorCriticAgent
+
+        return ActorCriticAgent(
+            env=env,
+            hidden_dims=cfg["agent"]["hidden_dims"],
+            lr=cfg["agent"]["lr"],
+            gamma=cfg["agent"]["gamma"],
+            ent_coef=cfg["agent"].get("entropy_coef", 0.0),
+            device=device,
+        )
+
     raise ValueError(f"Unknown agent '{name}'. Register it in scripts/train.py.")
 
 
@@ -93,7 +105,7 @@ def main():
     )
 
     # Route to correct training loop
-    if agent_name in ("reinforce", "ppo"):
+    if agent_name in ("reinforce", "ppo", "actor"):
         trainer.train_on_policy()
     else:
         from common.replay_buffer import ReplayBuffer
