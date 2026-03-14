@@ -61,6 +61,20 @@ def build_agent(name: str, env, cfg: dict, device: str):
             device=device,
         )
 
+    elif name == "dqn":
+        from agents.dqn.agent import DQNAgent
+
+        return DQNAgent(
+            env=env,
+            hidden_dims=cfg["agent"]["hidden_dims"],
+            lr=cfg["agent"]["lr"],
+            gamma=cfg["agent"]["gamma"],
+            eps_start=cfg["agent"].get("eps_start", 1.0),
+            eps_end=cfg["agent"].get("eps_end", 0.01),
+            eps_decay_steps=cfg["agent"].get("eps_decay_steps", 500),
+            device=device,
+        )
+
     raise ValueError(f"Unknown agent '{name}'. Register it in scripts/train.py.")
 
 

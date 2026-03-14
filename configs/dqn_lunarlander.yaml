@@ -1,0 +1,62 @@
+# DQN (Double DQN + Dueling) on LunarLander-v3
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ 200 over 100 consecutive episodes
+# Expected        : ~200–400k steps
+# Action space    : Discrete(4)  — fire main/left/right engine or nothing
+# Note            : Uses Dueling architecture here (4 actions benefit more
+#                   from value/advantage decomposition than 2-action CartPole)
+
+env_id: LunarLander-v3
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [256, 256]   # larger network for 8-dim obs + 4-action space
+
+  lr: 5.0e-4                # lower than CartPole — larger network needs
+                             # smaller steps to avoid overshooting
+  gamma: 0.99
+
+  # ε-greedy exploration schedule
+  eps_start: 1.0
+  eps_end: 0.05
+  eps_decay_steps: 50_000   # longer decay — harder env needs more exploration
+
+  # Target network
+  target_update_freq: 1_000  # less frequent than CartPole — larger network,
+                              # more noisy gradients early on
+
+  # Architecture variants
+  use_double: true           # Double DQN (always on)
+  use_dueling: true          # Dueling — value stream improves states where
+                              # action choice doesn't matter (hovering)
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 500_000
+  warmup_steps: 10_000      # longer warmup — 8-dim obs needs richer initial buffer
+  batch_size: 128
+  buffer_size: 100_000
+  update_every: 1
+  eval_interval: 50
+  save_interval: 100
+  checkpoint_dir: results/checkpoints/dqn_lunarlander
+  print_freq: 10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/dqn_lunarlander
+  use_tb: true
+  use_wandb: false
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Tuning guidance:
+#   - If mean_q diverges (keeps rising) → lower lr to 1e-4 or raise target_update_freq
+#   - If loss oscillates wildly after warmup → increase warmup_steps to 20_000
+#   - If agent never lifts off → raise eps_decay_steps to 100_000 (explore longer)
+#   - If learning plateaus around return=0 → try use_dueling: true (already on)
+#
+# Why Dueling helps here:
+#   LunarLander has many states where hovering is fine — the correct action
+#   matters less than knowing V(s). Dueling lets the value stream specialise
+#   on those states without being confused by the advantage stream.

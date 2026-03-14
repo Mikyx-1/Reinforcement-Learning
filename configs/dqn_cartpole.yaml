@@ -1,0 +1,62 @@
+# DQN (Double DQN) on CartPole-v1
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ 475 over 20 eval episodes
+# Expected        : ~30–80k steps  (fastest of all algorithms here;
+#                   off-policy replay makes every sample count)
+# Loop            : train_off_policy() — step → ReplayBuffer → sample → update
+
+env_id: CartPole-v1
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [128, 128]
+
+  lr: 1.0e-3
+  gamma: 0.99
+
+  # ε-greedy exploration schedule
+  eps_start: 1.0            # start fully random
+  eps_end: 0.05             # floor — never go fully greedy during training
+  eps_decay_steps: 10_000   # linear decay over first 10k steps
+
+  # Target network
+  target_update_freq: 500   # hard copy Q_online → Q_target every 500 steps
+
+  # Architecture variants
+  use_double: true          # Double DQN (default on — almost always better)
+  use_dueling: false        # Dueling streams — overkill for CartPole's 2 actions
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 100_000
+  warmup_steps: 1_000       # collect random transitions before any gradient update
+  batch_size: 64
+  buffer_size: 50_000       # replay buffer capacity
+  update_every: 1           # update every step (CartPole is cheap)
+  eval_interval: 50         # evaluate every 50 completed episodes
+  save_interval: 200
+  checkpoint_dir: results/checkpoints/dqn_cartpole
+  print_freq: 20
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/dqn_cartpole
+  use_tb: true
+  use_wandb: false
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Key TensorBoard diagnostics:
+#   train/epsilon  → should anneal linearly from 1.0 to 0.05 over 10k steps
+#   train/loss     → should fall in the first 20k steps then plateau near 0
+#   train/mean_q   → should rise steadily as the policy improves
+#   eval/mean_return → primary metric; expect to solve in ~30–60 episodes
+#
+# Compared to SARSA (sarsa_cartpole.yaml):
+#   - warmup_steps=1000: fill buffer with random data before any learning
+#   - buffer_size=50k: replay decorrelates transitions — key stability win
+#   - target_update_freq=500: frozen target prevents oscillating updates
+#   - use_double=true: corrects Q-value overestimation bias
+#
+# To enable Dueling architecture (useful with more actions, e.g. LunarLander):
+#   use_dueling: true
