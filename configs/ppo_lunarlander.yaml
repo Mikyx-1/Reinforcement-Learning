@@ -1,0 +1,65 @@
+# PPO-Clip on LunarLanderContinuous-v3
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ 200 over 100 consecutive episodes
+# Expected        : ~500k–1M steps
+# Action space    : Box(2,) → uses GaussianActorCritic (separate nets)
+# This is the recommended config for continuous control benchmarking.
+
+env_id: LunarLanderContinuous-v3
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [256, 256]   # larger networks for higher-dim obs/act space
+
+  lr: 3.0e-4
+  gamma: 0.999              # slightly higher gamma — long-horizon landing task
+
+  # GAE
+  lam: 0.98                 # higher λ than CartPole — longer episodes benefit
+                             # from more Monte-Carlo character
+
+  # Clipping
+  clip_eps: 0.2
+
+  # Update schedule
+  n_epochs: 10
+  batch_size: 64
+  rollout_steps: 1024       # longer rollout for continuous control stability
+
+  # Loss coefficients
+  vf_coef: 0.5
+  ent_coef: 0.0             # continuous envs explore via Gaussian std;
+                             # explicit entropy bonus often unnecessary
+
+  # Stability
+  max_grad_norm: 0.5
+  clip_value_loss: true
+  target_kl: 0.015
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 3_000_000
+  eval_interval: 20
+  save_interval: 100
+  checkpoint_dir: results/checkpoints/ppo_lunarlander
+  print_freq: 10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/ppo_lunarlander
+  use_tb: true
+  use_wandb: false
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Tuning guidance:
+#   - If explained_var stagnates below 0.5 → increase hidden_dims or lr
+#   - If approx_kl spikes repeatedly → lower lr to 1e-4 or clip_eps to 0.1
+#   - If landing reward never improves → try ent_coef: 0.001 to add exploration
+#   - gamma=0.999 (not 0.99) matters here: the landing reward is sparse and
+#     delayed; a shorter horizon discounts it too heavily
+#
+# Compared to actor_critic_lunarlander.yaml:
+#   - PPO is significantly more reliable for continuous control
+#   - GAE (lam=0.98) gives much lower-variance advantages than raw A_t
+#   - K=10 epochs × rollout_steps=1024 = strong sample efficiency

@@ -48,6 +48,19 @@ def build_agent(name: str, env, cfg: dict, device: str):
             device=device,
         )
 
+    elif name == "ppo":
+        from agents.ppo.agent import PPOAgent
+
+        return PPOAgent(
+            env=env,
+            hidden_dims=cfg["agent"]["hidden_dims"],
+            lr=cfg["agent"]["lr"],
+            gamma=cfg["agent"]["gamma"],
+            ent_coef=cfg["agent"].get("entropy_coef", 0.0),
+            clip_eps=cfg["agent"].get("clip_eps", 0.2),
+            device=device,
+        )
+
     raise ValueError(f"Unknown agent '{name}'. Register it in scripts/train.py.")
 
 
@@ -105,8 +118,11 @@ def main():
     )
 
     # Route to correct training loop
-    if agent_name in ("reinforce", "ppo", "actor"):
+    if agent_name in ("reinforce", "actor"):
         trainer.train_on_policy()
+
+    elif agent_name == "ppo":
+        trainer.train_ppo()
     else:
         from common.replay_buffer import ReplayBuffer
 
