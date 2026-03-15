@@ -90,6 +90,23 @@ def build_agent(name: str, env, cfg: dict, device: str):
             device=device,
         )
 
+    elif name == "ddpg":
+        from agents.ddpg.agent import DDPGAgent
+
+        return DDPGAgent(
+            env=env,
+            hidden_dims=cfg["agent"]["hidden_dims"],
+            actor_lr=cfg["agent"]["actor_lr"],
+            critic_lr=cfg["agent"]["critic_lr"],
+            gamma=cfg["agent"]["gamma"],
+            tau=cfg["agent"]["tau"],
+            noise_type=cfg["agent"]["noise_type"],
+            noise_sigma=cfg["agent"]["noise_sigma"],
+            noise_sigma_min=cfg["agent"].get("noise_sigma_min", 0.02),
+            noise_sigma_decay=cfg["agent"].get("noise_sigma_decay", 0.999),
+            device=device,
+        )
+
     raise ValueError(f"Unknown agent '{name}'. Register it in scripts/train.py.")
 
 

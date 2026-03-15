@@ -15,7 +15,6 @@ from typing import Any
 
 import gymnasium as gym
 import numpy as np
-import torch
 
 from agents.base_agent import BaseAgent
 from common.logger import Logger
@@ -264,97 +263,6 @@ class Trainer:
         print("[Trainer] PPO training complete.")
 
     # ------------------------------------------------------------------
-    # SARSA training  (on-policy TD, carries a' forward each step)
-    # ------------------------------------------------------------------
-
-    def train_sarsa(self) -> None:
-        """
-        SARSA training loop: (s, a, r, s', a') quintuple per step.
-
-        This loop differs from all others in one critical way:
-          - `a_{t+1}` is selected from s_{t+1} BEFORE update(batch) is called,
-            then carried forward as `a_t` for the next step.
-          - update() receives 'next_actions' in the batch dict, which is what
-            makes the TD target on-policy (SARSA) rather than off-policy (Q-learning).
-
-        Cannot use train_off_policy() because that loop does not compute or pass
-        next_actions — it only stores (s, a, r, s', done) transitions.
-        """
-        print(f"[Trainer] Starting SARSA training for {self.max_steps} steps.")
-
-        obs, _ = self.env.reset()
-        # Select the first action before entering the loop
-        action = self.agent.select_action(obs, deterministic=False)
-        episode_return = 0.0
-
-        for step in range(self.max_steps):
-            self.global_step += 1
-
-            # Execute current action
-            next_obs, reward, terminated, truncated, info = self.env.step(int(action))
-            done = terminated or truncated
-
-            # Select next action NOW (before the update) — this is the on-policy key step
-            next_action = (
-                self.agent.select_action(next_obs, deterministic=False)
-                if not done
-                else np.zeros_like(action)  # dummy; masked by done flag
-            )
-
-            # Build a single-transition batch (SARSA has no replay buffer)
-            batch = {
-                "obs": self.agent.to_tensor(obs).unsqueeze(0),
-                "actions": torch.tensor(
-                    [[int(action)]], dtype=torch.float32, device=self.agent.device
-                ),
-                "rewards": torch.tensor(
-                    [[float(reward)]], dtype=torch.float32, device=self.agent.device
-                ),
-                "next_obs": self.agent.to_tensor(next_obs).unsqueeze(0),
-                "dones": torch.tensor(
-                    [[float(done)]], dtype=torch.float32, device=self.agent.device
-                ),
-                "next_actions": torch.tensor(
-                    [[int(next_action)]], dtype=torch.float32, device=self.agent.device
-                ),
-            }
-
-            metrics = self.agent.update(batch)
-            episode_return += float(reward)
-            self.agent.on_step_end(self.global_step)
-
-            # Log update metrics every step (they're cheap — no mini-batch)
-            if step % self.config.get("log_every", 100) == 0:
-                self.logger.log(
-                    {f"train/{k}": v for k, v in metrics.items()},
-                    step=self.global_step,
-                )
-
-            if done:
-                self.episode += 1
-                self.episode_returns.append(episode_return)
-                self.agent.on_episode_end(self.episode, info)
-                self.logger.log(
-                    {"train/episode_return": episode_return},
-                    step=self.global_step,
-                )
-                if self.episode % self.eval_interval == 0:
-                    self._eval_and_log()
-                if self.episode % self.save_interval == 0:
-                    self._save_checkpoint()
-
-                obs, _ = self.env.reset()
-                action = self.agent.select_action(obs, deterministic=False)
-                episode_return = 0.0
-            else:
-                # Carry s' and a' forward — same action will be EXECUTED next step
-                obs = next_obs
-                action = next_action
-
-        self.logger.close()
-        print("[Trainer] SARSA training complete.")
-
-    # ------------------------------------------------------------------
     # Off-policy training  (DQN, DDPG, SAC, TD3)
     # ------------------------------------------------------------------
 
@@ -375,16 +283,11 @@ class Trainer:
                 action = self.env.action_space.sample()
             else:
                 action = self.agent.select_action(obs, deterministic=False)
-                # Unwrap to a plain Python scalar for gym.step():
-                #   - 0-d numpy array (DQN returns np.array(2))  → .item()
-                #   - 1-d single-element array (continuous agents) → [0]
-                #   - plain int / float → leave as-is
-                if hasattr(action, "ndim"):  # numpy array
-                    action = (
-                        action.item()
-                        if action.ndim == 0
-                        else (action[0] if action.shape == (1,) else action)
-                    )
+                # Unwrap 0-d numpy scalars (discrete agents like DQN) to int.
+                # Leave 1-D+ arrays untouched — continuous envs (Pendulum,
+                # LunarLanderContinuous) expect an array, not a bare float.
+                if hasattr(action, "ndim") and action.ndim == 0:
+                    action = action.item()
 
             next_obs, reward, terminated, truncated, info = self.env.step(action)
             done = terminated or truncated

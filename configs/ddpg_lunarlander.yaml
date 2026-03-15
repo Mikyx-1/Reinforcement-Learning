@@ -1,0 +1,61 @@
+# DDPG on LunarLanderContinuous-v2
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ 200 over 100 consecutive episodes
+# Expected        : ~400k–800k steps
+#                   (DDPG is less stable than PPO here — use for comparison)
+# Action space    : Box(2,) ∈ [-1, 1]  — main engine + side engine
+# Loop            : train_off_policy()
+
+env_id: LunarLanderContinuous-v3
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [400, 300]
+
+  actor_lr:  1.0e-4
+  critic_lr: 1.0e-3
+
+  gamma: 0.99
+  tau: 5.0e-3
+
+  # Gaussian noise works well for LunarLander — easier to tune than OU
+  noise_type: gaussian
+  noise_sigma: 0.1           # start at σ=0.1; decays over time
+  noise_sigma_min: 0.01      # floor — keep small exploration at convergence
+  noise_sigma_decay: 0.9995  # per-episode decay; reaches min after ~3000 episodes
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 1_000_000
+  warmup_steps: 10_000       # longer warmup — 8-dim obs needs richer buffer
+  batch_size: 256            # larger batch — more stable gradients
+  buffer_size: 200_000
+  update_every: 1
+  eval_interval: 20
+  save_interval: 100
+  checkpoint_dir: results/checkpoints/ddpg_lunarlander
+  print_freq: 10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/ddpg_lunarlander
+  use_tb: true
+  use_wandb: false
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Tuning guidance:
+#   - If mean_q diverges early → increase warmup_steps to 20_000
+#   - If actor_loss never improves → reduce critic_lr to 3e-4; critic
+#     must be stable before the actor gradient is meaningful
+#   - If policy collapses after initial improvement → increase tau to 1e-2
+#     (faster target update can rescue early collapse)
+#   - If noise decays too fast and exploration stops → set noise_sigma_decay: 0.9999
+#
+# Why Gaussian over OU here:
+#   LunarLander's control signal is not physically momentum-based; simple
+#   i.i.d. perturbations with a decaying magnitude work well and are
+#   easier to reason about than OU parameters (θ, σ, dt).
+#
+# For a cleaner benchmark, compare this run against ppo_lunarlander.yaml —
+# PPO is significantly more reliable here; DDPG's instability is instructive.

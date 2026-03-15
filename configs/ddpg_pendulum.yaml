@@ -1,0 +1,62 @@
+# DDPG on Pendulum-v1
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ -200 over 100 consecutive episodes
+#                   (Pendulum max return is ~-120; -200 is a good threshold)
+# Expected        : ~100–200k steps
+# Action space    : Box(1,) ∈ [-2, 2]  — torque applied to pendulum
+# Loop            : train_off_policy() — standard off-policy step loop
+
+env_id: Pendulum-v1
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [400, 300]   # original DDPG paper architecture
+
+  actor_lr:  1.0e-4         # actor lr lower than critic (standard DDPG)
+  critic_lr: 1.0e-3
+
+  gamma: 0.99
+  tau: 5.0e-3               # Polyak averaging — slow target update
+
+  # Exploration noise
+  noise_type: ou            # Ornstein-Uhlenbeck (original DDPG paper)
+  noise_sigma: 0.2          # OU volatility parameter σ
+  noise_sigma_min: 0.02     # not used for OU; applies to Gaussian mode
+  noise_sigma_decay: 0.999  # not used for OU; applies to Gaussian mode
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 200_000
+  warmup_steps: 5_000       # fill buffer with random actions before learning
+  batch_size: 128
+  buffer_size: 100_000
+  update_every: 1           # update every env step
+  eval_interval: 20
+  save_interval: 100
+  checkpoint_dir: results/checkpoints/ddpg_pendulum
+  print_freq: 10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/ddpg_pendulum
+  use_tb: true
+  use_wandb: false
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Key TensorBoard diagnostics:
+#   train/critic_loss  → should fall from ~1 to ~0.01 by 50k steps
+#   train/actor_loss   → should become more negative (we maximise Q)
+#   train/mean_q       → should rise steadily; divergence = reduce lr
+#   eval/mean_return   → starts near -1200, should reach > -200
+#
+# Tuning guidance:
+#   - If mean_q diverges → reduce critic_lr to 3e-4 or increase warmup_steps
+#   - If agent never improves after 50k steps → try noise_sigma: 0.3
+#     or switch noise_type to gaussian for more aggressive exploration
+#   - If training is unstable → reduce tau to 1e-3
+#
+# To compare OUNoise vs GaussianNoise:
+#   noise_type: gaussian
+#   noise_sigma: 0.1
+#   noise_sigma_decay: 0.9995    # decays to noise_sigma_min over ~3300 episodes
