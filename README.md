@@ -1,8 +1,10 @@
 # Reinforcement Learning Zoo
 
+![repo_logo](assets/rl_logo.svg)
+
 Clean, well-documented implementations of core RL algorithms, built to demonstrate scientific rigour: reproducible experiments, structured evaluation, and clear learning curves.
 
-![repo_logo](assets/rl_logo.svg)
+
 
 ---
 
