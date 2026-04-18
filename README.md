@@ -2,16 +2,22 @@
 
 Clean, well-documented implementations of core RL algorithms, built to demonstrate scientific rigour: reproducible experiments, structured evaluation, and clear learning curves.
 
-<pre>
-<span style="color:#da7756">
-██████╗ ██╗     
-██╔══██╗██║     
-██████╔╝██║     
-██╔══██╗██║     
-██║  ██║███████╗
-╚═╝  ╚═╝╚══════╝                                                      
-</span>
-</pre>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 120" width="320" height="120">
+  <style>
+    text {
+      font-family: "Courier New", Courier, monospace;
+      font-size: 14px;
+      fill: #da7756;
+      white-space: pre;
+    }
+  </style>
+  <text x="10" y="20">██████╗ ██╗     </text>
+  <text x="10" y="38">██╔══██╗██║     </text>
+  <text x="10" y="56">██████╔╝██║     </text>
+  <text x="10" y="74">██╔══██╗██║     </text>
+  <text x="10" y="92">██║  ██║███████╗</text>
+  <text x="10" y="110">╚═╝  ╚═╝╚══════╝</text>
+</svg>
 
 ---
 
