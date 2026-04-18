@@ -2,6 +2,17 @@
 
 Clean, well-documented implementations of core RL algorithms, built to demonstrate scientific rigour: reproducible experiments, structured evaluation, and clear learning curves.
 
+<pre>
+<span style="color:#da7756">
+██████╗ ██╗     
+██╔══██╗██║     
+██████╔╝██║     
+██╔══██╗██║     
+██║  ██║███████╗
+╚═╝  ╚═╝╚══════╝                                                      
+</span>
+</pre>
+
 ---
 
 ## Algorithms
