@@ -151,6 +151,11 @@ def main():
         log_dir=log_cfg.get("log_dir", f"results/runs/{agent_name}_{env_id}"),
         use_tb=log_cfg.get("use_tb", True),
         use_wandb=log_cfg.get("use_wandb", False),
+        wandb_kwargs={
+            "project": log_cfg.get("project", "Reinforcement-Learning"),
+            "name": log_cfg.get("run_name", f"{agent_name}_{env_id}"),
+            "config": cfg,
+        },
         print_freq=cfg["training"].get("print_freq", 10),
     )
     logger.log_hparams({**cfg["agent"], "env": env_id, "seed": seed})

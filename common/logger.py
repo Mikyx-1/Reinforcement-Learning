@@ -22,6 +22,7 @@ class Logger:
         log_dir: str | Path = "results/runs/default",
         use_tb: bool = True,
         use_wandb: bool = False,
+        wandb_kwargs: dict[str, Any] | None = None,
         print_freq: int = 1,  # print every N calls to log()
     ):
         self.log_dir = Path(log_dir)
@@ -47,6 +48,16 @@ class Logger:
             try:
                 import wandb
 
+                if wandb.run is None:
+                    # Default initialization if not already done
+                    init_args = wandb_kwargs or {}
+                    if "project" not in init_args:
+                        init_args["project"] = "Reinforcement-Learning"
+                    if "name" not in init_args:
+                        init_args["name"] = self.log_dir.name
+                    
+                    wandb.init(**init_args)
+                
                 self._wandb = wandb
             except ImportError:
                 print("[Logger] wandb not installed, skipping W&B logging.")
@@ -92,6 +103,8 @@ class Logger:
         """Log hyperparameters (TensorBoard hparam tab)."""
         if self._tb is not None:
             self._tb.add_hparams(hparams, {})
+        if self._wandb is not None:
+            self._wandb.config.update(hparams)
         print("[Logger] Hyperparameters:", hparams)
 
     def close(self) -> None:
