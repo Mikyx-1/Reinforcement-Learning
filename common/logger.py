@@ -55,6 +55,8 @@ class Logger:
                         init_args["project"] = "Reinforcement-Learning"
                     if "name" not in init_args:
                         init_args["name"] = self.log_dir.name
+                    if "dir" not in init_args:
+                        init_args["dir"] = str(self.log_dir)
                     
                     wandb.init(**init_args)
                 
