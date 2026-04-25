@@ -57,9 +57,9 @@ class Logger:
                         init_args["name"] = self.log_dir.name
                     if "dir" not in init_args:
                         init_args["dir"] = str(self.log_dir)
-                    
+
                     wandb.init(**init_args)
-                
+
                 self._wandb = wandb
             except ImportError:
                 print("[Logger] wandb not installed, skipping W&B logging.")
@@ -89,7 +89,7 @@ class Logger:
 
         # W&B
         if self._wandb is not None:
-            self._wandb.log({**metrics, "step": step})
+            self._wandb.log(metrics, step=step)
 
         # Stdout
         if self._call_count % self.print_freq == 0:
