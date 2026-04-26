@@ -13,7 +13,7 @@ setup(
         "pyyaml>=6.0",
     ],
     extras_require={
-        "dev": ["pytest", "tensorboard", "matplotlib", "pandas"],
+        "dev": ["pytest", "matplotlib", "pandas"],
         "wandb": ["wandb>=0.15.0"],
     },
 )

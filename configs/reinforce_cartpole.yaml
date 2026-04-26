@@ -14,7 +14,7 @@ agent:
 
 # Training
 training:
-  max_steps: 150_000
+  max_steps: 500_000
   eval_interval: 50        # eval every 50 episodes
   save_interval: 200
   checkpoint_dir: results/checkpoints/reinforce_cartpole
@@ -23,5 +23,4 @@ training:
 # Logging
 logging:
   log_dir: results/runs/reinforce_cartpole
-  use_tb: true
-  use_wandb: false
+  use_wandb: true

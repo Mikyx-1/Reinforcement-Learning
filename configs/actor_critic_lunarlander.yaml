@@ -33,7 +33,6 @@ training:
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
   log_dir: results/runs/actor_critic_lunarlander
-  use_tb: true
   use_wandb: false
 
 # ── Notes ─────────────────────────────────────────────────────────────

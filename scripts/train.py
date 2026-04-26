@@ -149,7 +149,6 @@ def main():
     log_cfg = cfg.get("logging", {})
     logger = Logger(
         log_dir=log_cfg.get("log_dir", f"results/runs/{agent_name}_{env_id}"),
-        use_tb=log_cfg.get("use_tb", True),
         use_wandb=log_cfg.get("use_wandb", False),
         wandb_kwargs={
             "project": log_cfg.get("project", "Reinforcement-Learning"),

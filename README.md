@@ -39,7 +39,7 @@ Reinforcement-Learning/
 │
 ├── common/
 │   ├── replay_buffer.py      # ReplayBuffer (off-policy) + RolloutBuffer (on-policy, GAE)
-│   ├── logger.py             # TensorBoard + W&B + CSV logger
+│   ├── logger.py             # W&B + CSV logger
 │   ├── schedulers.py         # Linear / Exponential / Cosine schedules
 │   └── utils.py              # build_mlp, soft_update, set_seed, explained_variance
 │
@@ -90,6 +90,6 @@ pytest tests/ -v
 
 **Separate concerns.** The `Trainer` owns the loop; the agent owns the math. Swapping algorithms never touches the training code.
 
-**Scientific evaluation.** `Evaluator` runs N greedy episodes, reports mean ± std, and exports CSV. TensorBoard logs are written for every run.
+**Scientific evaluation.** `Evaluator` runs N greedy episodes, reports mean ± std, and exports CSV. Results can also be logged to Weights & Biases.
 
 **Tested core.** `tests/test_core.py` covers buffers, schedulers, and agent save/load so refactors don't silently break things.

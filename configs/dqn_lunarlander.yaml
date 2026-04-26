@@ -46,7 +46,6 @@ training:
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
   log_dir: results/runs/dqn_lunarlander
-  use_tb: true
   use_wandb: false
 
 # ── Notes ─────────────────────────────────────────────────────────────

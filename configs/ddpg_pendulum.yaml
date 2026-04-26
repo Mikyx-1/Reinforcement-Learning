@@ -40,11 +40,9 @@ training:
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
   log_dir: results/runs/ddpg_pendulum
-  use_tb: true
   use_wandb: false
 
 # ── Notes ─────────────────────────────────────────────────────────────
-# Key TensorBoard diagnostics:
 #   train/critic_loss  → should fall from ~1 to ~0.01 by 50k steps
 #   train/actor_loss   → should become more negative (we maximise Q)
 #   train/mean_q       → should rise steadily; divergence = reduce lr

@@ -29,7 +29,7 @@ agent:
 
 # ── Training ──────────────────────────────────────────────────────────
 training:
-  max_steps: 100_000
+  max_steps: 500_000
   warmup_steps: 1_000       # collect random transitions before any gradient update
   batch_size: 64
   buffer_size: 50_000       # replay buffer capacity
@@ -42,11 +42,12 @@ training:
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
   log_dir: results/runs/dqn_cartpole
-  use_tb: true
   use_wandb: false
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: dqn_cartpole
 
 # ── Notes ─────────────────────────────────────────────────────────────
-# Key TensorBoard diagnostics:
 #   train/epsilon  → should anneal linearly from 1.0 to 0.05 over 10k steps
 #   train/loss     → should fall in the first 20k steps then plateau near 0
 #   train/mean_q   → should rise steadily as the policy improves

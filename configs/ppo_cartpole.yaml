@@ -39,7 +39,7 @@ agent:
 
 # ── Training ──────────────────────────────────────────────────────────
 training:
-  max_steps: 200_000
+  max_steps: 500_000
   eval_interval: 20         # evaluate every 20 completed episodes
   save_interval: 100
   checkpoint_dir: results/checkpoints/ppo_cartpole
@@ -48,11 +48,9 @@ training:
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
   log_dir: results/runs/ppo_cartpole
-  use_tb: true
-  use_wandb: false
+  use_wandb: true
 
 # ── Notes ─────────────────────────────────────────────────────────────
-# Key TensorBoard diagnostics:
 #   approx_kl      → healthy: [0.005, 0.02]; spike = lr too high
 #   clip_fraction  → healthy: [0.05, 0.20]; always high = reduce lr or clip_eps
 #   explained_var  → should rise towards 1.0 as critic improves

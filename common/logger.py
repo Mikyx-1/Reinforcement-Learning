@@ -1,11 +1,11 @@
 """
 Lightweight logger that writes to:
   - stdout (always)
-  - TensorBoard (if tensorboard is installed)
   - W&B (if wandb is installed and init'd externally)
+  - CSV metrics file
 
 Usage:
-    logger = Logger(log_dir="results/runs/reinforce_cartpole", use_tb=True)
+    logger = Logger(log_dir="results/runs/reinforce_cartpole")
     logger.log({"policy_loss": 0.42, "episode_return": 195.0}, step=1000)
     logger.close()
 """
@@ -20,7 +20,6 @@ class Logger:
     def __init__(
         self,
         log_dir: str | Path = "results/runs/default",
-        use_tb: bool = True,
         use_wandb: bool = False,
         wandb_kwargs: dict[str, Any] | None = None,
         print_freq: int = 1,  # print every N calls to log()
@@ -31,16 +30,6 @@ class Logger:
         self._call_count = 0
         self._start_time = time.time()
 
-        # TensorBoard
-        self._tb = None
-        if use_tb:
-            try:
-                from torch.utils.tensorboard import SummaryWriter
-
-                self._tb = SummaryWriter(log_dir=str(self.log_dir))
-                print(f"[Logger] TensorBoard → {self.log_dir}")
-            except ImportError:
-                print("[Logger] tensorboard not installed, skipping TB writer.")
 
         # W&B
         self._wandb = None
@@ -83,11 +72,6 @@ class Logger:
         self._txt.write(row + "\n")
         self._txt.flush()
 
-        # TensorBoard
-        if self._tb is not None:
-            for k, v in metrics.items():
-                if isinstance(v, (int, float)):
-                    self._tb.add_scalar(k, v, global_step=step)
 
         # W&B
         if self._wandb is not None:
@@ -104,16 +88,12 @@ class Logger:
             print("  |  ".join(parts), flush=True)
 
     def log_hparams(self, hparams: dict[str, Any]) -> None:
-        """Log hyperparameters (TensorBoard hparam tab)."""
-        if self._tb is not None:
-            self._tb.add_hparams(hparams, {})
+        """Log hyperparameters."""
         if self._wandb is not None:
             self._wandb.config.update(hparams)
         print("[Logger] Hyperparameters:", hparams)
 
     def close(self) -> None:
-        if self._tb is not None:
-            self._tb.close()
         self._txt.close()
 
     def __enter__(self):
