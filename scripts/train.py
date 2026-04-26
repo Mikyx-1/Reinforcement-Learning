@@ -10,6 +10,7 @@ Usage:
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 # Make repo root importable regardless of working directory
@@ -147,10 +148,23 @@ def main():
 
     # Build logger
     log_cfg = cfg.get("logging", {})
+
+    # Extract wandb_config and set defaults
+    wandb_kwargs = log_cfg.get("wandb_config", {}).copy()
+    if "project" not in wandb_kwargs:
+        wandb_kwargs["project"] = "Reinforcement-Learning"
+    if "name" not in wandb_kwargs:
+        # Format: <agent>/<environment>/seed_<seed>/<timestamp>
+        timestamp = time.strftime("%b%d_%H:%M")
+        wandb_kwargs["name"] = f"{agent_name}/{env_id}/seed_{seed}/{timestamp}"
+
+    if "config" not in wandb_kwargs:
+        wandb_kwargs["config"] = cfg
+
     logger = Logger(
         log_dir=log_cfg.get("log_dir", f"results/runs/{agent_name}_{env_id}"),
-        use_tb=log_cfg.get("use_tb", True),
         use_wandb=log_cfg.get("use_wandb", False),
+        wandb_kwargs=wandb_kwargs,
         print_freq=cfg["training"].get("print_freq", 10),
     )
     logger.log_hparams({**cfg["agent"], "env": env_id, "seed": seed})

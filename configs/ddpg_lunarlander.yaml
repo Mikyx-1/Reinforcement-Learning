@@ -40,8 +40,10 @@ training:
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
   log_dir: results/runs/ddpg_lunarlander
-  use_tb: true
   use_wandb: false
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: ddpg_lunarlander
 
 # ── Notes ─────────────────────────────────────────────────────────────
 # Tuning guidance:

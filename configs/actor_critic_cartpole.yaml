@@ -23,7 +23,7 @@ agent:
 
 # ── Training ──────────────────────────────────────────────────────────
 training:
-  max_steps: 150_000
+  max_steps: 500_000
   eval_interval: 50         # evaluate every 50 completed episodes
   save_interval: 200
   checkpoint_dir: results/checkpoints/actor_critic_cartpole
@@ -32,8 +32,10 @@ training:
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
   log_dir: results/runs/actor_critic_cartpole
-  use_tb: true
-  use_wandb: false
+  use_wandb: true
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: actor_critic_cartpole
 
 # ── Notes ─────────────────────────────────────────────────────────────
 # Compared to REINFORCE (reinforce_cartpole.yaml):

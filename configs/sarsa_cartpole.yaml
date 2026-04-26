@@ -35,11 +35,12 @@ training:
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
   log_dir: results/runs/sarsa_cartpole
-  use_tb: true
   use_wandb: false
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: sarsa_cartpole
 
 # ── Notes ─────────────────────────────────────────────────────────────
-# Key TensorBoard diagnostics:
 #   train/epsilon  → anneal from 1.0 to 0.05 over first 10k steps
 #   train/loss     → SARSA loss is typically smoother than DQN (no replay variance)
 #   train/mean_q   → should rise, but will be slightly lower than DQN's

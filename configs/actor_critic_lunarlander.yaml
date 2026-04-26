@@ -33,8 +33,10 @@ training:
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
   log_dir: results/runs/actor_critic_lunarlander
-  use_tb: true
   use_wandb: false
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: actor_critic_lunarlander
 
 # ── Notes ─────────────────────────────────────────────────────────────
 # Tuning guidance for continuous envs with Actor-Critic:
