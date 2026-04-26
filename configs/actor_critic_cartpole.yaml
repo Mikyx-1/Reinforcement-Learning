@@ -33,6 +33,9 @@ training:
 logging:
   log_dir: results/runs/actor_critic_cartpole
   use_wandb: true
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: actor_critic_cartpole
 
 # ── Notes ─────────────────────────────────────────────────────────────
 # Compared to REINFORCE (reinforce_cartpole.yaml):

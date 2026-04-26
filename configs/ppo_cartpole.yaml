@@ -49,6 +49,9 @@ training:
 logging:
   log_dir: results/runs/ppo_cartpole
   use_wandb: true
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: ppo_cartpole
 
 # ── Notes ─────────────────────────────────────────────────────────────
 #   approx_kl      → healthy: [0.005, 0.02]; spike = lr too high

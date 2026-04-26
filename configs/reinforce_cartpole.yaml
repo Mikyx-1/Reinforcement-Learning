@@ -20,7 +20,10 @@ training:
   checkpoint_dir: results/checkpoints/reinforce_cartpole
   print_freq: 20
 
-# Logging
+# ── Logging ───────────────────────────────────────────────────────────
 logging:
   log_dir: results/runs/reinforce_cartpole
   use_wandb: true
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: reinforce_cartpole

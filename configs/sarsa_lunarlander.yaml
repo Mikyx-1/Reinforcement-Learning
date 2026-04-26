@@ -37,6 +37,9 @@ training:
 logging:
   log_dir: results/runs/sarsa_lunarlander
   use_wandb: false
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: sarsa_lunarlander
 
 # ── Notes ─────────────────────────────────────────────────────────────
 # Tuning guidance:
