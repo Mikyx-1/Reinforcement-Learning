@@ -40,15 +40,6 @@ class Logger:
                 if wandb.run is None:
                     # Default initialization if not already done
                     init_args = wandb_kwargs or {}
-                    if "project" not in init_args:
-                        init_args["project"] = "Reinforcement-Learning"
-                    if "name" not in init_args:
-                        # TODO: Auto-generate
-                        # Formula: {algo}_{env}_{seed}_{timestamp}
-                        init_args["name"] = self.log_dir.name
-                    if "dir" not in init_args:
-                        init_args["dir"] = str(self.log_dir)
-
                     wandb.init(**init_args)
 
                 self._wandb = wandb
