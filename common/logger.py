@@ -54,6 +54,8 @@ class Logger:
                     if "project" not in init_args:
                         init_args["project"] = "Reinforcement-Learning"
                     if "name" not in init_args:
+                        # TODO: Auto-generate
+                        # Formula: {algo}_{env}_{seed}_{timestamp}
                         init_args["name"] = self.log_dir.name
                     if "dir" not in init_args:
                         init_args["dir"] = str(self.log_dir)
