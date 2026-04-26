@@ -42,7 +42,7 @@ training:
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
   log_dir: results/runs/dqn_cartpole
-  use_wandb: false
+  use_wandb: true
   wandb_config:
     project: "Reinforcement-Learning"
     group: dqn_cartpole
