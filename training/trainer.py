@@ -55,7 +55,6 @@ class Trainer:
         self.config = config
         self.logger = logger or Logger(
             log_dir=f"results/runs/{type(agent).__name__}",
-            use_tb=True,
             print_freq=config.get("print_freq", 10),
         )
 
