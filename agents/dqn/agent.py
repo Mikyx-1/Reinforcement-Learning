@@ -183,7 +183,7 @@ class DQNAgent(BaseAgent):
         self.optimizer.zero_grad()
         loss.backward()
         # Gradient clipping (important for stability with large replay buffers)
-        torch.nn.utils.clip_grad_value_(self.q_net.parameters(), 100.0)
+        nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=10.0)
         self.optimizer.step()
 
         self.training_step += 1
