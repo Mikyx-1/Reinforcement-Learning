@@ -21,7 +21,7 @@ agent:
   eps_decay_steps: 20_000   # linear decay over first 10k steps
 
   # Target network
-  target_update_freq: 500   # soft copy Q_online → Q_target every 500 steps
+  target_update_freq: 1   # soft copy Q_online → Q_target every 1 steps
 
   # Architecture variants
   use_double: true          # Double DQN (default on — almost always better)

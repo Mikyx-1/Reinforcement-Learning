@@ -198,8 +198,7 @@ class DQNAgent(BaseAgent):
         """Decay ε and periodically sync the target network."""
         self.epsilon = self.eps_schedule.value(step)
         if step % self.target_update_freq == 0:
-            # soft_update(self.q_target, self.q_net, tau=0.005)
-            hard_update(self.q_target, self.q_net)
+            soft_update(self.q_target, self.q_net, tau=0.005)
 
     def save(self, path: str | Path) -> None:
         path = Path(path)
