@@ -105,9 +105,14 @@ def soft_update(target: nn.Module, source: nn.Module, tau: float) -> None:
     """
     Polyak averaging: θ_target ← τ·θ_source + (1−τ)·θ_target
     Used by DDPG, TD3, SAC for slowly updating target networks.
-    """
-    for tp, sp in zip(target.parameters(), source.parameters()):
-        tp.data.copy_(tau * sp.data + (1.0 - tau) * tp.data)
+    """ 
+    target_net_state_dict = target.state_dict()
+    policy_net_state_dict = source.state_dict()
+    for key in policy_net_state_dict:
+        target_net_state_dict[key] = policy_net_state_dict[
+            key
+        ] * tau + target_net_state_dict[key] * (1 - tau)
+    target.load_state_dict(target_net_state_dict)
 
 
 def hard_update(target: nn.Module, source: nn.Module) -> None:
