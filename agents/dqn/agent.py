@@ -47,7 +47,7 @@ import torch.optim as optim
 from agents.base_agent import BaseAgent
 from agents.dqn.networks import DuelingQNetwork, QNetwork
 from common.schedulers import LinearSchedule
-from common.utils import hard_update
+from common.utils import hard_update, soft_update
 
 
 class DQNAgent(BaseAgent):
@@ -111,7 +111,7 @@ class DQNAgent(BaseAgent):
         hard_update(self.q_target, self.q_net)  # start with identical weights
         self.q_target.eval()  # target never trains directly
 
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=lr)
+        self.optimizer = optim.AdamW(self.q_net.parameters(), lr=lr, amsgrad=True)
         self.loss_fn = nn.SmoothL1Loss()  # Huber loss — less sensitive to outliers
 
     # ------------------------------------------------------------------
@@ -183,7 +183,7 @@ class DQNAgent(BaseAgent):
         self.optimizer.zero_grad()
         loss.backward()
         # Gradient clipping (important for stability with large replay buffers)
-        nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=10.0)
+        torch.nn.utils.clip_grad_value_(self.q_net.parameters(), 100.0)
         self.optimizer.step()
 
         self.training_step += 1
@@ -198,7 +198,7 @@ class DQNAgent(BaseAgent):
         """Decay ε and periodically sync the target network."""
         self.epsilon = self.eps_schedule.value(step)
         if step % self.target_update_freq == 0:
-            hard_update(self.q_target, self.q_net)
+            soft_update(self.q_target, self.q_net, tau=0.005)
 
     def save(self, path: str | Path) -> None:
         path = Path(path)
