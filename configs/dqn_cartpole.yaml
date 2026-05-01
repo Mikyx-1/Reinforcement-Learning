@@ -32,7 +32,7 @@ training:
   max_steps: 500_000
   warmup_steps: 1_000       # collect random transitions before any gradient update
   batch_size: 64
-  buffer_size: 50_000       # replay buffer capacity
+  buffer_size: 10_000       # replay buffer capacity
   update_every: 1           # update every step (CartPole is cheap)
   eval_interval: 50         # evaluate every 50 completed episodes
   save_interval: 200
@@ -55,7 +55,7 @@ logging:
 #
 # Compared to SARSA (sarsa_cartpole.yaml):
 #   - warmup_steps=1000: fill buffer with random data before any learning
-#   - buffer_size=50k: replay decorrelates transitions — key stability win
+#   - buffer_size=10k: replay decorrelates transitions — key stability win
 #   - target_update_freq=500: frozen target prevents oscillating updates
 #   - use_double=true: corrects Q-value overestimation bias
 #
