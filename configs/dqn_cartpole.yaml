@@ -12,16 +12,16 @@ seed: 42
 agent:
   hidden_dims: [128, 128]
 
-  lr: 1.0e-3
+  lr: 3.0e-4
   gamma: 0.99
 
   # ε-greedy exploration schedule
   eps_start: 1.0            # start fully random
   eps_end: 0.05             # floor — never go fully greedy during training
-  eps_decay_steps: 10_000   # linear decay over first 10k steps
+  eps_decay_steps: 20_000   # linear decay over first 10k steps
 
   # Target network
-  target_update_freq: 500   # hard copy Q_online → Q_target every 500 steps
+  target_update_freq: 1   # soft copy Q_online → Q_target every 1 steps
 
   # Architecture variants
   use_double: true          # Double DQN (default on — almost always better)
@@ -30,14 +30,14 @@ agent:
 # ── Training ──────────────────────────────────────────────────────────
 training:
   max_steps: 500_000
-  warmup_steps: 1_000       # collect random transitions before any gradient update
-  batch_size: 64
+  warmup_steps: 0       # collect random transitions before any gradient update
+  batch_size: 128
   buffer_size: 10_000       # replay buffer capacity
   update_every: 1           # update every step (CartPole is cheap)
   eval_interval: 50         # evaluate every 50 completed episodes
   save_interval: 200
   checkpoint_dir: results/checkpoints/dqn_cartpole
-  print_freq: 20
+  print_freq: 1000
 
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
