@@ -1,0 +1,65 @@
+# TD3 on Pendulum-v1
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ -200 over 100 consecutive episodes
+#                   (Pendulum max return ≈ -120; -200 is a strong threshold)
+# Expected        : ~50–100k steps  (TD3 is typically more sample-efficient
+#                   than DDPG thanks to its bias-corrected target)
+# Action space    : Box(1,) ∈ [-2, 2]
+# Loop            : train_off_policy() — same step → push → sample → update
+
+env_id: Pendulum-v1
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [256, 256]    # TD3 paper uses 400-300; 256-256 also works well
+
+  actor_lr:  3.0e-4          # TD3 paper uses the same lr for actor & critic
+  critic_lr: 3.0e-4
+
+  gamma: 0.99
+  tau:   5.0e-3              # Polyak averaging — slow target update
+
+  # ── TD3-specific ─────────────────────────────────────────────────────
+  policy_delay: 2            # actor + target update every 2 critic updates
+  target_noise_sigma: 0.2    # σ̃ for target-policy smoothing (× act_limit)
+  target_noise_clip: 0.5     # c   for clipping smoothing noise (× act_limit)
+
+  # ── Behaviour-policy exploration noise ──────────────────────────────
+  noise_type: gaussian       # TD3 paper uses Gaussian, not OU
+  noise_sigma: 0.1           # std (× act_limit) of exploration noise
+  noise_sigma_min: 0.01
+  noise_sigma_decay: 1.0     # no decay by default — TD3 keeps σ fixed
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps:    150_000
+  warmup_steps:  10_000       # fill buffer with random actions before learning
+  batch_size:      256
+  buffer_size: 1_000_000
+  update_every:      1        # update once per env step
+  eval_interval:    20
+  save_interval:   100
+  checkpoint_dir: results/checkpoints/td3_pendulum
+  print_freq:       10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/td3_pendulum
+  use_wandb: false
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: td3_pendulum
+
+# ── Notes ─────────────────────────────────────────────────────────────
+#   train/critic_loss  → fall sharply in the first ~20k steps
+#   train/mean_q1, q2  → should rise together; large gap = critic divergence
+#   train/actor_loss   → becomes more negative as the policy improves
+#   eval/mean_return   → starts near -1200; should reach > -200 by ~80k steps
+#
+# Tuning guidance:
+#   - If mean_q diverges → reduce critic_lr to 1e-4 or raise warmup_steps
+#   - If learning is slow → try target_noise_sigma: 0.1 (less regularisation)
+#   - If unstable late in training → reduce tau to 1e-3
+#   - policy_delay: 2 is the paper default; 1 reduces TD3 to a twin-critic
+#     DDPG (still beats DDPG, but loses the delayed-update benefit).

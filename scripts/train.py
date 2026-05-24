@@ -109,6 +109,26 @@ def build_agent(name: str, env, cfg: dict, device: str):
             device=device,
         )
 
+    elif name == "td3":
+        from agents.td3.agent import TD3Agent
+
+        return TD3Agent(
+            env=env,
+            hidden_dims=cfg["agent"]["hidden_dims"],
+            actor_lr=cfg["agent"]["actor_lr"],
+            critic_lr=cfg["agent"]["critic_lr"],
+            gamma=cfg["agent"]["gamma"],
+            tau=cfg["agent"]["tau"],
+            policy_delay=cfg["agent"].get("policy_delay", 2),
+            target_noise_sigma=cfg["agent"].get("target_noise_sigma", 0.2),
+            target_noise_clip=cfg["agent"].get("target_noise_clip", 0.5),
+            noise_type=cfg["agent"].get("noise_type", "gaussian"),
+            noise_sigma=cfg["agent"].get("noise_sigma", 0.1),
+            noise_sigma_min=cfg["agent"].get("noise_sigma_min", 0.01),
+            noise_sigma_decay=cfg["agent"].get("noise_sigma_decay", 1.0),
+            device=device,
+        )
+
     raise ValueError(f"Unknown agent '{name}'. Register it in scripts/train.py.")
 
 
