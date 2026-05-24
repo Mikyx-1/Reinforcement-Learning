@@ -91,6 +91,43 @@ def build_agent(name: str, env: gym.Env, cfg: dict, device: str):
             target_kl=a.get("target_kl", 0.015),
             device=device,
         )
+    if name == "ddpg":
+        from agents.ddpg.agent import DDPGAgent
+
+        a = cfg["agent"]
+        return DDPGAgent(
+            env=env,
+            hidden_dims=a["hidden_dims"],
+            actor_lr=a["actor_lr"],
+            critic_lr=a["critic_lr"],
+            gamma=a["gamma"],
+            tau=a["tau"],
+            noise_type=a["noise_type"],
+            noise_sigma=a["noise_sigma"],
+            noise_sigma_min=a.get("noise_sigma_min", 0.02),
+            noise_sigma_decay=a.get("noise_sigma_decay", 0.999),
+            device=device,
+        )
+    if name == "td3":
+        from agents.td3.agent import TD3Agent
+
+        a = cfg["agent"]
+        return TD3Agent(
+            env=env,
+            hidden_dims=a["hidden_dims"],
+            actor_lr=a["actor_lr"],
+            critic_lr=a["critic_lr"],
+            gamma=a["gamma"],
+            tau=a["tau"],
+            policy_delay=a.get("policy_delay", 2),
+            target_noise_sigma=a.get("target_noise_sigma", 0.2),
+            target_noise_clip=a.get("target_noise_clip", 0.5),
+            noise_type=a.get("noise_type", "gaussian"),
+            noise_sigma=a.get("noise_sigma", 0.1),
+            noise_sigma_min=a.get("noise_sigma_min", 0.01),
+            noise_sigma_decay=a.get("noise_sigma_decay", 1.0),
+            device=device,
+        )
     # ── add future algorithms below ──────────────────────────────────────────
     # if name == "dqn":
     #     from agents.dqn.agent import DQNAgent
@@ -111,7 +148,10 @@ def _step(agent, obs, deterministic: bool):
     """Return a plain Python action from either (action, log_prob) or action."""
     result = agent.select_action(obs, deterministic=deterministic)
     action = result[0] if isinstance(result, tuple) else result
-    if hasattr(action, "item"):
+    # Unwrap 0-D numpy scalars from discrete agents (DQN etc.) to a Python int.
+    # Leave 1-D+ arrays alone — continuous envs (Pendulum, LunarLanderContinuous)
+    # expect an array, not a bare float.
+    if hasattr(action, "ndim") and action.ndim == 0:
         action = action.item()
     return action
 
