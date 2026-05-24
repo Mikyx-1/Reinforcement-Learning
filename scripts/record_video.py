@@ -148,7 +148,10 @@ def _step(agent, obs, deterministic: bool):
     """Return a plain Python action from either (action, log_prob) or action."""
     result = agent.select_action(obs, deterministic=deterministic)
     action = result[0] if isinstance(result, tuple) else result
-    if hasattr(action, "item"):
+    # Unwrap 0-D numpy scalars from discrete agents (DQN etc.) to a Python int.
+    # Leave 1-D+ arrays alone — continuous envs (Pendulum, LunarLanderContinuous)
+    # expect an array, not a bare float.
+    if hasattr(action, "ndim") and action.ndim == 0:
         action = action.item()
     return action
 
