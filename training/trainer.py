@@ -15,6 +15,7 @@ from typing import Any
 
 import gymnasium as gym
 import numpy as np
+import torch
 
 from agents.base_agent import BaseAgent
 from common.logger import Logger
@@ -260,6 +261,113 @@ class Trainer:
 
         self.logger.close()
         print("[Trainer] PPO training complete.")
+
+    # ------------------------------------------------------------------
+    # SARSA training  (on-policy TD with carried-forward a')
+    # ------------------------------------------------------------------
+
+    def train_sarsa(self) -> None:
+        """
+        SARSA loop with a small rolling-window mini-batch.
+
+        Each step pushes the (s, a, r, s', done, a') quintuple into a short
+        FIFO buffer; we then sample a uniform mini-batch and update. The
+        action a' stored in every transition is the action the agent ACTUALLY
+        took next under the behaviour policy at collection time — that's
+        what keeps the update on-policy and SARSA-like (never max_a').
+
+        Why a buffer (despite SARSA being "on-policy")?
+            Pure online (B=1) TD with a 17k-parameter network has too much
+            gradient variance to ever shape a coherent policy; in practice
+            the network converges to fit a degenerate near-uniform Q and
+            the greedy action collapses to a single constant. A short
+            rolling window (~1000 transitions, ~tens of episodes' worth)
+            keeps the sampled mini-batch close to the current policy while
+            cutting variance to roughly DQN levels. This is the standard
+            practical recipe for neural SARSA; the on-policy guarantee
+            holds in the limit of small buffer / slow policy change.
+        """
+        import random
+        from collections import deque
+
+        print(f"[Trainer] Starting SARSA training for {self.max_steps} steps.")
+        log_every = self.config.get("log_every", 1)
+        batch_size = self.config.get("batch_size", 64)
+        buffer_size = self.config.get("buffer_size", 1024)
+        update_every = self.config.get("update_every", 1)
+
+        buffer: deque = deque(maxlen=buffer_size)
+
+        obs, _ = self.env.reset()
+        action = self.agent.select_action(obs, deterministic=False)
+        episode_return = 0.0
+        device = self.agent.device
+
+        for step in range(self.max_steps):
+            self.global_step += 1
+
+            env_action = action.item() if hasattr(action, "ndim") and action.ndim == 0 else action
+            next_obs, reward, terminated, truncated, info = self.env.step(env_action)
+            done = terminated or truncated
+
+            next_action = self.agent.select_action(next_obs, deterministic=False)
+
+            buffer.append(
+                (
+                    np.asarray(obs, dtype=np.float32),
+                    int(action),
+                    float(reward),
+                    np.asarray(next_obs, dtype=np.float32),
+                    float(done),
+                    int(next_action),
+                )
+            )
+
+            if step % update_every == 0 and len(buffer) >= batch_size:
+                sampled = random.sample(buffer, batch_size)
+                obs_b, act_b, rew_b, next_obs_b, done_b, next_act_b = zip(*sampled)
+
+                batch = {
+                    "obs": torch.as_tensor(np.stack(obs_b), dtype=torch.float32, device=device),
+                    "actions": torch.as_tensor(act_b, dtype=torch.long, device=device).unsqueeze(1),
+                    "rewards": torch.as_tensor(rew_b, dtype=torch.float32, device=device).unsqueeze(1),
+                    "next_obs": torch.as_tensor(np.stack(next_obs_b), dtype=torch.float32, device=device),
+                    "dones": torch.as_tensor(done_b, dtype=torch.float32, device=device).unsqueeze(1),
+                    "next_actions": torch.as_tensor(next_act_b, dtype=torch.long, device=device).unsqueeze(1),
+                }
+                metrics = self.agent.update(batch)
+
+                if self.global_step % log_every == 0:
+                    self.logger.log(
+                        {f"train/{k}": v for k, v in metrics.items()},
+                        step=self.global_step,
+                    )
+
+            episode_return += float(reward)
+            self.agent.on_step_end(self.global_step)
+
+            if done:
+                self.episode += 1
+                self.episode_returns.append(episode_return)
+                self.logger.log(
+                    {"train/episode_return": episode_return}, step=self.global_step
+                )
+                self.agent.on_episode_end(self.episode, info)
+
+                if self.episode % self.eval_interval == 0:
+                    self._eval_and_log()
+                if self.episode % self.save_interval == 0:
+                    self._save_checkpoint()
+
+                obs, _ = self.env.reset()
+                action = self.agent.select_action(obs, deterministic=False)
+                episode_return = 0.0
+            else:
+                obs = next_obs
+                action = next_action
+
+        self.logger.close()
+        print("[Trainer] SARSA training complete.")
 
     # ------------------------------------------------------------------
     # Off-policy training  (DQN, DDPG, SAC, TD3)

@@ -23,14 +23,28 @@ agent:
   eps_end: 0.05
   eps_decay_steps: 10_000
 
+  # Polyak coefficient for target-net soft update.
+  # Needed for stability under NN function approximation with single-sample
+  # online updates — pure online TD without it diverges in CartPole.
+  tau: 0.005
+
 # ── Training ──────────────────────────────────────────────────────────
 training:
-  max_steps: 150_000        # more steps than DQN to compensate for no replay
+  max_steps: 500_000
   eval_interval: 50
   save_interval: 200
   checkpoint_dir: results/checkpoints/sarsa_cartpole
-  log_every: 100            # log update metrics every 100 steps (SARSA updates every step)
+  log_every: 100            # log update metrics every 100 steps
   print_freq: 20
+
+  # Rolling-window mini-batch.
+  # Strict B=1 online TD diverges in variance on a 17k-param net (the
+  # policy collapses to a single action); a short window keeps each
+  # sample close to the current policy while cutting per-step gradient
+  # noise to ~DQN levels. Small buffer ⇒ near-on-policy.
+  buffer_size: 1024
+  batch_size: 64
+  update_every: 1
 
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
@@ -48,10 +62,13 @@ logging:
 #   eval/mean_return → greedy evaluation (ε=0), primary metric
 #
 # Compared to DQN (dqn_cartpole.yaml):
-#   - No warmup_steps: SARSA learns from the very first step (no buffer to fill)
-#   - No buffer_size: SARSA cannot use a replay buffer (would violate on-policy constraint)
-#   - No target_update_freq: single Q-network, no target network needed
-#   - Higher max_steps: compensates for not reusing data (each transition used once)
+#   - Smaller buffer (1024 vs 10_000): near-on-policy — sampled transitions
+#     come from the most recent ~10-20 episodes, not arbitrary history.
+#   - Each transition stores a' (the action the agent ACTUALLY took next).
+#     That field is what makes the update SARSA rather than Q-learning:
+#     the TD target uses Q(s', a'), never max_a' Q(s', a').
+#   - Target net is Polyak-averaged every step (tau=0.005) for the same
+#     reason DQN uses one — to break the bootstrap feedback loop.
 #
 # Why SARSA is safer in some environments:
 #   In CartPole the difference is subtle, but in cliff-walking environments
