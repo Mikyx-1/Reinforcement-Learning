@@ -79,6 +79,8 @@ class Evaluator:
         self.n_episodes = n_episodes
         self.deterministic = deterministic
         self._records: list[dict[str, Any]] = []
+        self._all_episode_returns: list[float] = []
+        self._all_episode_lengths: list[int] = []
 
     def run(self, step: int = 0) -> dict[str, float]:
         """
@@ -117,6 +119,8 @@ class Evaluator:
             "mean_length": float(np.mean(lengths)),
         }
         self._records.append(metrics)
+        self._all_episode_returns.extend(returns)
+        self._all_episode_lengths.extend(lengths)
         return metrics
 
     def save_results(self, path: str | Path) -> None:
@@ -133,6 +137,23 @@ class Evaluator:
             writer.writeheader()
             writer.writerows(self._records)
         print(f"[Evaluator] Results saved → {path}")
+
+    def save_episode_returns(self, path: str | Path) -> None:
+        """Write per-episode returns to a CSV file."""
+        if not self._all_episode_returns:
+            print("[Evaluator] No episode returns to save.")
+            return
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        import csv
+        with open(path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["episode", "return", "length"])
+            for i, (r, l) in enumerate(
+                zip(self._all_episode_returns, self._all_episode_lengths), 1
+            ):
+                writer.writerow([i, r, l])
+        print(f"[Evaluator] Episode returns saved → {path}")
 
     def summary(self) -> None:
         """Print a formatted summary of the latest evaluation."""
