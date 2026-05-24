@@ -128,6 +128,23 @@ def build_agent(name: str, env: gym.Env, cfg: dict, device: str):
             noise_sigma_decay=a.get("noise_sigma_decay", 1.0),
             device=device,
         )
+    if name == "sac":
+        from agents.sac.agent import SACAgent
+
+        a = cfg["agent"]
+        return SACAgent(
+            env=env,
+            hidden_dims=a["hidden_dims"],
+            actor_lr=a["actor_lr"],
+            critic_lr=a["critic_lr"],
+            alpha_lr=a.get("alpha_lr", 3e-4),
+            gamma=a["gamma"],
+            tau=a["tau"],
+            init_alpha=a.get("init_alpha", 0.2),
+            autotune_alpha=a.get("autotune_alpha", True),
+            target_entropy=a.get("target_entropy", None),
+            device=device,
+        )
     # ── add future algorithms below ──────────────────────────────────────────
     # if name == "dqn":
     #     from agents.dqn.agent import DQNAgent

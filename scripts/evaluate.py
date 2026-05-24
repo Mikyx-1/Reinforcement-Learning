@@ -116,6 +116,21 @@ def build_agent(name: str, env, cfg: dict, device: str):
             noise_sigma_decay=cfg["agent"].get("noise_sigma_decay", 1.0),
             device=device,
         )
+    elif name == "sac":
+        from agents.sac.agent import SACAgent
+        return SACAgent(
+            env=env,
+            hidden_dims=cfg["agent"]["hidden_dims"],
+            actor_lr=cfg["agent"]["actor_lr"],
+            critic_lr=cfg["agent"]["critic_lr"],
+            alpha_lr=cfg["agent"].get("alpha_lr", 3e-4),
+            gamma=cfg["agent"]["gamma"],
+            tau=cfg["agent"]["tau"],
+            init_alpha=cfg["agent"].get("init_alpha", 0.2),
+            autotune_alpha=cfg["agent"].get("autotune_alpha", True),
+            target_entropy=cfg["agent"].get("target_entropy", None),
+            device=device,
+        )
     raise ValueError(f"Unknown agent '{name}'.")
 
 
