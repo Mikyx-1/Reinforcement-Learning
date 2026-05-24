@@ -89,6 +89,7 @@ def build_agent(name: str, env, cfg: dict, device: str):
             eps_start=cfg["agent"].get("eps_start", 1.0),
             eps_end=cfg["agent"].get("eps_end", 0.01),
             eps_decay_steps=cfg["agent"].get("eps_decay_steps", 500),
+            tau=cfg["agent"].get("tau", 0.005),
             device=device,
         )
 

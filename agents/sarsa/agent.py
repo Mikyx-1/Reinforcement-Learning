@@ -21,10 +21,18 @@ Algorithm (one step):
     1. Observe s_t; select a_t via ε-greedy  (this is the behaviour policy)
     2. Execute a_t; observe r_t, s_{t+1}
     3. Select a_{t+1} via ε-greedy from s_{t+1}   ← must do BEFORE update
-    4. TD target:  y_t = r_t + γ · Q(s_{t+1}, a_{t+1}) · (1 − done_t)
-    5. Loss:       L   = MSE(Q(s_t, a_t),  y_t)
-    6. Gradient step
+    4. TD target:  y_t = r_t + γ · Q_target(s_{t+1}, a_{t+1}) · (1 − done_t)
+    5. Loss:       L   = Huber(Q(s_t, a_t),  y_t)
+    6. Gradient step on Q_online; soft-update Q_target ← τ·Q_online + (1−τ)·Q_target
     7. s_t ← s_{t+1},  a_t ← a_{t+1}   (carry forward the chosen next action)
+
+Stability note:
+    Pure tabular SARSA converges without a target network, but with neural
+    function approximation and single-sample (B=1) online updates the
+    bootstrap Q(s', a') feeds back into its own learning target — Q-values
+    diverge in practice. We use a Polyak-averaged target network (same fix
+    DQN uses) while keeping SARSA's defining property: the target evaluates
+    the ACTUAL next action a', never max_a'.
 
 Training loop implication:
     The standard Trainer.train_off_policy() cannot be used because it does
@@ -51,6 +59,7 @@ import torch.optim as optim
 from agents.base_agent import BaseAgent
 from agents.sarsa.networks import QNetwork
 from common.schedulers import LinearSchedule
+from common.utils import hard_update, soft_update
 
 
 class SarsaAgent(BaseAgent):
@@ -67,6 +76,7 @@ class SarsaAgent(BaseAgent):
         eps_start:        Initial ε for ε-greedy exploration.
         eps_end:          Final ε after annealing.
         eps_decay_steps:  Steps over which ε decays linearly to eps_end.
+        tau:              Polyak coefficient for target-net soft update.
         device:           'cpu' or 'cuda'.
     """
 
@@ -79,6 +89,7 @@ class SarsaAgent(BaseAgent):
         eps_start: float = 1.0,
         eps_end: float = 0.05,
         eps_decay_steps: int = 10_000,
+        tau: float = 0.005,
         device: str = "cpu",
     ):
         assert isinstance(
@@ -90,6 +101,7 @@ class SarsaAgent(BaseAgent):
         super().__init__(obs_dim=obs_dim, act_dim=act_dim, device=device)
 
         self.gamma = gamma
+        self.tau = tau
 
         # ε-greedy schedule (same interface as DQN for easy comparison)
         self.eps_schedule = LinearSchedule(
@@ -99,10 +111,19 @@ class SarsaAgent(BaseAgent):
         )
         self.epsilon = eps_start
 
-        # Single Q-network (no target network — on-policy TD is more stable)
+        # Online + slow target Q-network. Tabular SARSA is stable without a
+        # target net, but with NN function approximation and single-sample
+        # online updates the bootstrap feeds back into its own target and
+        # Q-values diverge. A Polyak-averaged target net breaks that loop
+        # while keeping the SARSA semantics intact (target evaluates the
+        # ACTUAL next action a', not max_a').
         self.q_net = QNetwork(obs_dim, act_dim, hidden_dims).to(self.device)
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=lr)
-        self.loss_fn = nn.MSELoss()
+        self.q_target = QNetwork(obs_dim, act_dim, hidden_dims).to(self.device)
+        hard_update(self.q_target, self.q_net)
+        self.q_target.eval()
+
+        self.optimizer = optim.AdamW(self.q_net.parameters(), lr=lr, amsgrad=True)
+        self.loss_fn = nn.SmoothL1Loss()  # Huber — robust to bootstrapping outliers
 
     # ------------------------------------------------------------------
     # BaseAgent interface
@@ -160,9 +181,11 @@ class SarsaAgent(BaseAgent):
         q_values = self.q_net(obs)  # (B, act_dim)
         q_taken = q_values.gather(1, actions.unsqueeze(1))  # (B, 1)
 
-        # ── SARSA TD target: use Q(s', a') where a' is the ACTUAL next action ─
+        # ── SARSA TD target: use Q_target(s', a') where a' is the ACTUAL next action ─
+        # The target network breaks the q ← q feedback loop that causes
+        # divergence; using next_actions (not max) preserves on-policy SARSA.
         with torch.no_grad():
-            next_q_values = self.q_net(next_obs)  # (B, act_dim)
+            next_q_values = self.q_target(next_obs)  # (B, act_dim)
             next_q_taken = next_q_values.gather(1, next_actions.unsqueeze(1))  # (B, 1)
             targets = rewards + self.gamma * next_q_taken * (1.0 - dones)
 
@@ -183,8 +206,9 @@ class SarsaAgent(BaseAgent):
         }
 
     def on_step_end(self, step: int) -> None:
-        """Decay ε after every environment step."""
+        """Decay ε and Polyak-update the target network after every env step."""
         self.epsilon = self.eps_schedule.value(step)
+        soft_update(self.q_target, self.q_net, tau=self.tau)
 
     def save(self, path: str | Path) -> None:
         path = Path(path)
@@ -192,6 +216,7 @@ class SarsaAgent(BaseAgent):
         torch.save(
             {
                 "q_net_state_dict": self.q_net.state_dict(),
+                "q_target_state_dict": self.q_target.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "training_step": self.training_step,
                 "epsilon": self.epsilon,
@@ -202,6 +227,10 @@ class SarsaAgent(BaseAgent):
     def load(self, path: str | Path) -> None:
         ckpt = torch.load(path, map_location=self.device)
         self.q_net.load_state_dict(ckpt["q_net_state_dict"])
+        if "q_target_state_dict" in ckpt:
+            self.q_target.load_state_dict(ckpt["q_target_state_dict"])
+        else:
+            hard_update(self.q_target, self.q_net)
         self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         self.training_step = ckpt.get("training_step", 0)
         self.epsilon = ckpt.get("epsilon", self.eps_schedule.end)
