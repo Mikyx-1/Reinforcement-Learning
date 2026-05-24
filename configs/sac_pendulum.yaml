@@ -1,0 +1,67 @@
+# SAC on Pendulum-v1
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ -200 over 100 consecutive episodes
+#                   (Pendulum max return ≈ -120; -200 is a strong threshold)
+# Expected        : ~30–60k steps  (SAC is typically more sample-efficient
+#                   than TD3/DDPG thanks to the entropy bonus & stochastic actor)
+# Action space    : Box(1,) ∈ [-2, 2]
+# Loop            : train_off_policy() — same step → push → sample → update
+
+env_id: Pendulum-v1
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [256, 256]    # SAC paper uses 256-256
+
+  actor_lr:  3.0e-4
+  critic_lr: 3.0e-4
+  alpha_lr:  3.0e-4          # only used when autotune_alpha=true
+
+  gamma: 0.99
+  tau:   5.0e-3              # Polyak averaging — slow target update
+
+  # ── SAC-specific ─────────────────────────────────────────────────────
+  init_alpha:     0.2        # starting entropy coefficient
+  autotune_alpha: true       # learn log α toward target_entropy (SAC v2)
+  target_entropy: null       # null → use heuristic H̄ = −act_dim
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps:    100_000
+  warmup_steps:   1_000       # SAC explores via the stochastic policy itself,
+                              # so only a short warmup is needed.
+  batch_size:      256
+  buffer_size: 1_000_000
+  update_every:      1        # update once per env step
+  eval_interval:    20
+  save_interval:   100
+  checkpoint_dir: results/checkpoints/sac_pendulum
+  print_freq:       10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/sac_pendulum
+  use_wandb: false
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: sac_pendulum
+
+# ── Notes ─────────────────────────────────────────────────────────────
+#   train/critic_loss    → falls in the first ~20k steps
+#   train/mean_q1, q2    → should rise together; large gap = critic divergence
+#   train/actor_loss     → becomes more negative as the policy improves
+#                          (we minimise α·logπ − Q, so −Q dominates as Q grows)
+#   train/alpha          → starts at 0.2 and drifts to match target entropy;
+#                          for act_dim=1 the target is −1, so α typically lands
+#                          near 0.05–0.2 on Pendulum.
+#   train/entropy        → -mean(log π); should stay > target_entropy.
+#   eval/mean_return     → starts near -1200; should reach > -200 by ~40k steps.
+#
+# Tuning guidance:
+#   - If learning stalls and entropy collapses → raise alpha_lr or set a
+#     larger target_entropy (less negative).
+#   - If actions oscillate / policy too random → lower target_entropy
+#     (more negative) or disable autotuning and fix init_alpha low.
+#   - If mean_q diverges → reduce critic_lr to 1e-4 or raise warmup_steps.
+#   - SAC is fairly robust to tau and batch_size compared to DDPG.
