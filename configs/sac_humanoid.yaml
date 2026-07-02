@@ -1,0 +1,56 @@
+# SAC on Humanoid-v5 — the "extremely difficult" 3D demo
+# ──────────────────────────────────────────────────────────────────────
+# 17 degrees of freedom, 348-dim observation. Published SAC baselines
+# take ~5-10M steps to reach a graceful, sustained walk (return > 5000);
+# competent standing/balancing shows up much earlier.
+# Action space    : Box(17,)
+# Loop            : train_off_policy() — step → push → sample → update
+# Throughput      : ~115 steps/sec on CPU (M2, no CUDA) — this is a
+#                   multi-hour background run; treat whatever checkpoint
+#                   exists when we stop as the demo, not a guaranteed solve.
+
+env_id: Humanoid-v5
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [256, 256]
+
+  actor_lr:  3.0e-4
+  critic_lr: 3.0e-4
+  alpha_lr:  3.0e-4
+
+  gamma: 0.99
+  tau:   5.0e-3
+
+  # ── SAC-specific ─────────────────────────────────────────────────────
+  init_alpha:     0.2
+  autotune_alpha: true
+  target_entropy: null       # null → heuristic H̄ = −act_dim = −17
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps:    3_000_000    # ~7 hrs at measured throughput; runs in the
+                              # background, checkpoints are usable at any point
+  warmup_steps:  10_000
+  batch_size:      256
+  buffer_size: 1_000_000
+  update_every:      1
+  eval_interval:    50
+  save_interval:   100
+  checkpoint_dir: results/checkpoints/sac_humanoid
+  print_freq:     1000
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/sac_humanoid
+  use_wandb: false
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: sac_humanoid
+
+# ── Notes ─────────────────────────────────────────────────────────────
+#   eval/mean_return → Humanoid-v5 gives a healthy-standing reward each
+#                       step, so return > 0 alone isn't meaningful; watch
+#                       train/episode_length (survives longer without
+#                       falling) as the more honest early signal.

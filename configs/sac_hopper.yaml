@@ -1,0 +1,56 @@
+# SAC on Hopper-v5
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ 3000 over 20 eval episodes is a strong
+#                   hopping gait; > 1500 already looks like real hopping.
+# Expected        : ~300k–600k steps to a competent gait (published SAC
+#                   baselines reach ~3000+ by ~1M steps)
+# Action space    : Box(3,) — hip/knee/ankle torques
+# Loop            : train_off_policy() — step → push → sample → update
+# Throughput      : ~190 steps/sec on CPU (M2, no CUDA) — 600k steps ≈ 50 min
+
+env_id: Hopper-v5
+seed: 42
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [256, 256]    # SAC paper default for MuJoCo
+
+  actor_lr:  3.0e-4
+  critic_lr: 3.0e-4
+  alpha_lr:  3.0e-4
+
+  gamma: 0.99
+  tau:   5.0e-3
+
+  # ── SAC-specific ─────────────────────────────────────────────────────
+  init_alpha:     0.2
+  autotune_alpha: true
+  target_entropy: null       # null → heuristic H̄ = −act_dim = −3
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps:    600_000
+  warmup_steps:  10_000      # MuJoCo contact dynamics need more random
+                              # exploration than Pendulum before learning starts
+  batch_size:      256
+  buffer_size: 1_000_000
+  update_every:      1
+  eval_interval:    25
+  save_interval:    50
+  checkpoint_dir: results/checkpoints/sac_hopper
+  print_freq:      500
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/sac_hopper
+  use_wandb: false
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: sac_hopper
+
+# ── Notes ─────────────────────────────────────────────────────────────
+#   eval/mean_return → early episodes end in ~10-30 steps (falls over);
+#                       expect real hopping (return > 1000) by ~150-300k steps.
+#   Hopper terminates on unhealthy states (falling), so episode length is
+#   itself a strong learning signal — watch train/episode_length climb
+#   toward the 1000-step horizon.
