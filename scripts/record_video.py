@@ -17,6 +17,13 @@ Usage examples:
         --checkpoint results/checkpoints/reinforce_cartpole/ReinforceAgent_ep200.pt \\
         --format gif --max_frames 300 --fps 24
 
+    # Export a small GIF for a README (downscaled + palette-optimized —
+    # MuJoCo scenes especially need this, raw frames can be 10x larger)
+    python scripts/record_video.py \\
+        --config     configs/sac_hopper.yaml \\
+        --checkpoint results/checkpoints/sac_hopper/SACAgent_ep1700.pt \\
+        --format gif --max_frames 200 --width 200 --height 200 --gif_colors 128
+
     # Record 5 episodes, custom output dir, render in real-time as well
     python scripts/record_video.py \\
         --config     configs/reinforce_cartpole.yaml \\
@@ -79,11 +86,18 @@ def record(
     deterministic: bool,
     seed: int,
     show: bool,
+    width: int | None = None,
+    height: int | None = None,
 ) -> list[dict]:
     """Run n_episodes with gymnasium's RecordVideo wrapper (MP4 output)."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    env = gym.make(env_id, render_mode="rgb_array")
+    render_kwargs = {}
+    if width is not None:
+        render_kwargs["width"] = width
+    if height is not None:
+        render_kwargs["height"] = height
+    env = gym.make(env_id, render_mode="rgb_array", **render_kwargs)
     env = gym.wrappers.RecordVideo(
         env,
         video_folder=str(output_dir),
@@ -131,18 +145,33 @@ def record_gif(
     seed: int,
     fps: int,
     max_frames: int | None,
+    width: int | None = None,
+    height: int | None = None,
+    gif_colors: int = 256,
 ) -> list[dict]:
-    """Collect frames manually and write a single GIF via imageio."""
+    """
+    Collect frames manually and write a single palette-quantized GIF via Pillow.
+
+    A raw-RGB imageio GIF of a MuJoCo scene (textured floor, shading) can hit
+    10-20MB even at a few hundred frames, since LZW compresses flat CartPole-
+    style backgrounds far better than natural gradients. Quantizing to an
+    adaptive palette (gif_colors, default 256) and downscaling (width/height)
+    are what actually control file size here — reduce gif_colors and/or
+    resolution first if the output is still too large.
+    """
     try:
-        import imageio
+        from PIL import Image
     except ImportError as e:
-        raise SystemExit(
-            "imageio is required for GIF export: pip install imageio"
-        ) from e
+        raise SystemExit("Pillow is required for GIF export: pip install pillow") from e
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    env = gym.make(env_id, render_mode="rgb_array")
+    render_kwargs = {}
+    if width is not None:
+        render_kwargs["width"] = width
+    if height is not None:
+        render_kwargs["height"] = height
+    env = gym.make(env_id, render_mode="rgb_array", **render_kwargs)
     env.reset(seed=seed)
 
     frames: list = []
@@ -183,8 +212,16 @@ def record_gif(
 
     env.close()
 
-    print(f"\nWriting GIF ({len(frames)} frames @ {fps} fps) → {output_path}")
-    imageio.mimsave(str(output_path), frames, fps=fps)
+    print(f"\nWriting GIF ({len(frames)} frames @ {fps} fps, {gif_colors} colors) → {output_path}")
+    pil_frames = [Image.fromarray(f).convert("P", palette=Image.ADAPTIVE, colors=gif_colors) for f in frames]
+    pil_frames[0].save(
+        output_path,
+        save_all=True,
+        append_images=pil_frames[1:],
+        duration=round(1000 / fps),
+        loop=0,
+        optimize=True,
+    )
     size_mb = output_path.stat().st_size / (1024 * 1024)
     print(f"GIF size: {size_mb:.2f} MB")
 
@@ -255,6 +292,18 @@ def main():
         type=int,
         default=None,
         help="Hard cap on total frames collected (GIF only). Keeps file size small.",
+    )
+    parser.add_argument(
+        "--width", type=int, default=None, help="Render width in pixels (env must support it, e.g. MuJoCo)."
+    )
+    parser.add_argument(
+        "--height", type=int, default=None, help="Render height in pixels (env must support it, e.g. MuJoCo)."
+    )
+    parser.add_argument(
+        "--gif_colors",
+        type=int,
+        default=256,
+        help="Palette size for GIF export (GIF only). Lower = smaller file, more banding.",
     )
     parser.add_argument(
         "--device", default="cpu", help="Torch device: 'cpu' or 'cuda'."
@@ -328,6 +377,9 @@ def main():
             seed=seed,
             fps=args.fps,
             max_frames=args.max_frames,
+            width=args.width,
+            height=args.height,
+            gif_colors=args.gif_colors,
         )
         save_stats(stats, output_dir)
         print(f"GIF saved to: {gif_path}\n")
@@ -340,6 +392,8 @@ def main():
             deterministic=not args.stochastic,
             seed=seed,
             show=args.show,
+            width=args.width,
+            height=args.height,
         )
         save_stats(stats, output_dir)
         print(f"Videos saved to: {output_dir}/\n")

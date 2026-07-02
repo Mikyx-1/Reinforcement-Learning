@@ -28,12 +28,15 @@ Clean, well-documented implementations of core RL algorithms, built to demonstra
 <b>DQN</b> · CartPole-v1 · greedy eval, return 500/500
 </td>
 <td align="center" width="50%">
-<i>More environments on the way — see the roadmap below.</i>
+<img src="assets/demos/sac_hopper.gif" width="100%"><br>
+<b>SAC</b> · Hopper-v5 (MuJoCo, 3D) · greedy eval, return ≈3565, full 1000-step episode
 </td>
 </tr>
 </table>
 
-GIFs are generated straight from a saved checkpoint with [`scripts/record_video.py --format gif`](scripts/record_video.py) (no manual editing), so they reflect what the agent actually does at eval time. Currently the repo only wraps classic-control / Box2D environments (CartPole, LunarLander, Pendulum) — MuJoCo/3D continuous-control demos are on the roadmap once an agent is trained there, not before.
+GIFs are generated straight from a saved checkpoint with [`scripts/record_video.py --format gif`](scripts/record_video.py) (no manual editing) — MuJoCo scenes need `--width`/`--height` and `--gif_colors` to keep the file size sane (a raw-resolution, full-palette GIF of Hopper hit 15MB; downscaled + palette-quantized it's ~1.5-2MB). See that script's usage examples for the exact command.
+
+**Humanoid-v5 (17 DOF) is training** — the genuinely hard 3D benchmark, typically needs several million steps for a real walking gait. It's running in the background; a demo will be added once it clears a reasonable bar, not before.
 
 ---
 
@@ -49,7 +52,8 @@ GIFs are generated straight from a saved checkpoint with [`scripts/record_video.
 | DDPG | Off-policy actor-critic | Continuous | ✅ Done |
 | TD3 | Off-policy actor-critic | Continuous | ✅ Done |
 | SAC | Off-policy actor-critic | Continuous | ✅ Done |
-| MuJoCo / 3D continuous control | — | Continuous | 🔜 |
+| MuJoCo Hopper-v5 (3D) | via SAC | Continuous | ✅ Done — see demo above |
+| MuJoCo Humanoid-v5 (3D, 17 DOF) | via SAC | Continuous | 🚧 Training in background |
 
 Each algorithm's theory notes live next to its code, e.g. [`agents/dqn/README.md`](agents/dqn/README.md).
 
@@ -116,6 +120,10 @@ python scripts/train.py --config configs/dqn_cartpole.yaml --device cuda --seed 
 python scripts/train.py --config configs/ppo_lunarlander.yaml
 python scripts/train.py --config configs/ddpg_pendulum.yaml
 
+# Train SAC on a 3D MuJoCo env (needs `pip install mujoco`; see configs/sac_hopper.yaml
+# and configs/sac_humanoid.yaml for tuned hyperparameters and expected training time)
+python scripts/train.py --config configs/sac_hopper.yaml
+
 # Evaluate a checkpoint
 python scripts/evaluate.py \
     --config configs/reinforce_cartpole.yaml \
@@ -130,6 +138,14 @@ python scripts/record_video.py \
     --config configs/dqn_cartpole.yaml \
     --checkpoint results/checkpoints/dqn_cartpole/DQNAgent_ep1100.pt \
     --format gif --max_frames 200 --output_dir assets/demos
+
+# Same, but for a 3D MuJoCo env — downscale + reduce the palette or the GIF
+# balloons to 10-20MB (raw MuJoCo frames don't compress like flat 2D scenes)
+python scripts/record_video.py \
+    --config configs/sac_hopper.yaml \
+    --checkpoint results/checkpoints/sac_hopper/SACAgent_ep1700.pt \
+    --format gif --max_frames 200 --width 200 --height 200 --gif_colors 128 \
+    --output_dir assets/demos
 
 # Run tests
 pytest tests/ -v
