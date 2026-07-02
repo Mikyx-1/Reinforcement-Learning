@@ -120,6 +120,7 @@ def make_env(
     clip_reward: float | None = None,
     scale_reward: float | None = None,
     record_stats: bool = True,
+    render_mode: str | None = None,
 ) -> gym.Env:
     """
     Factory that builds and wraps an environment.
@@ -131,11 +132,12 @@ def make_env(
         clip_reward:   If set, clip rewards to ±clip_reward.
         scale_reward:  If set, multiply rewards by this factor.
         record_stats:  Attach RecordEpisodeStats wrapper.
+        render_mode:   Passed straight to gym.make(), e.g. 'human' or 'rgb_array'.
 
     Returns:
         Wrapped gymnasium.Env.
     """
-    env = gym.make(env_id)
+    env = gym.make(env_id, render_mode=render_mode)
     env.reset(seed=seed)
 
     if record_stats:

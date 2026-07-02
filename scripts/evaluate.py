@@ -21,117 +21,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from common.registry import build_agent, infer_agent_name
 from common.utils import load_config, set_seed
 from envs.wrappers import make_env
 from evaluation.evaluator import Evaluator
-
-
-def build_agent(name: str, env, cfg: dict, device: str):
-    if name == "reinforce":
-        from agents.reinforce.agent import ReinforceAgent
-        return ReinforceAgent(
-            env=env,
-            hidden_dims=cfg["agent"]["hidden_dims"],
-            lr=cfg["agent"]["lr"],
-            gamma=cfg["agent"]["gamma"],
-            entropy_coef=cfg["agent"].get("entropy_coef", 0.0),
-            device=device,
-        )
-    elif name == "actor":
-        from agents.actor_critic.agent import ActorCriticAgent
-        return ActorCriticAgent(
-            env=env,
-            hidden_dims=cfg["agent"]["hidden_dims"],
-            lr=cfg["agent"]["lr"],
-            gamma=cfg["agent"]["gamma"],
-            ent_coef=cfg["agent"].get("entropy_coef", 0.0),
-            device=device,
-        )
-    elif name == "ppo":
-        from agents.ppo.agent import PPOAgent
-        return PPOAgent(
-            env=env,
-            hidden_dims=cfg["agent"]["hidden_dims"],
-            lr=cfg["agent"]["lr"],
-            gamma=cfg["agent"]["gamma"],
-            ent_coef=cfg["agent"].get("entropy_coef", 0.0),
-            clip_eps=cfg["agent"].get("clip_eps", 0.2),
-            device=device,
-        )
-    elif name == "dqn":
-        from agents.dqn.agent import DQNAgent
-        return DQNAgent(
-            env=env,
-            hidden_dims=cfg["agent"]["hidden_dims"],
-            lr=cfg["agent"]["lr"],
-            gamma=cfg["agent"]["gamma"],
-            eps_start=cfg["agent"].get("eps_start", 1.0),
-            eps_end=cfg["agent"].get("eps_end", 0.01),
-            eps_decay_steps=cfg["agent"].get("eps_decay_steps", 500),
-            target_update_freq=cfg["agent"].get("target_update_freq", 1),
-            device=device,
-        )
-    elif name == "sarsa":
-        from agents.sarsa.agent import SarsaAgent
-        return SarsaAgent(
-            env=env,
-            hidden_dims=cfg["agent"]["hidden_dims"],
-            lr=cfg["agent"]["lr"],
-            gamma=cfg["agent"]["gamma"],
-            eps_start=cfg["agent"].get("eps_start", 1.0),
-            eps_end=cfg["agent"].get("eps_end", 0.01),
-            eps_decay_steps=cfg["agent"].get("eps_decay_steps", 500),
-            device=device,
-        )
-    elif name == "ddpg":
-        from agents.ddpg.agent import DDPGAgent
-        return DDPGAgent(
-            env=env,
-            hidden_dims=cfg["agent"]["hidden_dims"],
-            actor_lr=cfg["agent"]["actor_lr"],
-            critic_lr=cfg["agent"]["critic_lr"],
-            gamma=cfg["agent"]["gamma"],
-            tau=cfg["agent"]["tau"],
-            noise_type=cfg["agent"]["noise_type"],
-            noise_sigma=cfg["agent"]["noise_sigma"],
-            noise_sigma_min=cfg["agent"].get("noise_sigma_min", 0.02),
-            noise_sigma_decay=cfg["agent"].get("noise_sigma_decay", 0.999),
-            device=device,
-        )
-    elif name == "td3":
-        from agents.td3.agent import TD3Agent
-        return TD3Agent(
-            env=env,
-            hidden_dims=cfg["agent"]["hidden_dims"],
-            actor_lr=cfg["agent"]["actor_lr"],
-            critic_lr=cfg["agent"]["critic_lr"],
-            gamma=cfg["agent"]["gamma"],
-            tau=cfg["agent"]["tau"],
-            policy_delay=cfg["agent"].get("policy_delay", 2),
-            target_noise_sigma=cfg["agent"].get("target_noise_sigma", 0.2),
-            target_noise_clip=cfg["agent"].get("target_noise_clip", 0.5),
-            noise_type=cfg["agent"].get("noise_type", "gaussian"),
-            noise_sigma=cfg["agent"].get("noise_sigma", 0.1),
-            noise_sigma_min=cfg["agent"].get("noise_sigma_min", 0.01),
-            noise_sigma_decay=cfg["agent"].get("noise_sigma_decay", 1.0),
-            device=device,
-        )
-    elif name == "sac":
-        from agents.sac.agent import SACAgent
-        return SACAgent(
-            env=env,
-            hidden_dims=cfg["agent"]["hidden_dims"],
-            actor_lr=cfg["agent"]["actor_lr"],
-            critic_lr=cfg["agent"]["critic_lr"],
-            alpha_lr=cfg["agent"].get("alpha_lr", 3e-4),
-            gamma=cfg["agent"]["gamma"],
-            tau=cfg["agent"]["tau"],
-            init_alpha=cfg["agent"].get("init_alpha", 0.2),
-            autotune_alpha=cfg["agent"].get("autotune_alpha", True),
-            target_entropy=cfg["agent"].get("target_entropy", None),
-            device=device,
-        )
-    raise ValueError(f"Unknown agent '{name}'.")
 
 
 def main():
@@ -140,17 +33,20 @@ def main():
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--n_episodes", type=int, default=20)
     parser.add_argument("--device", default="cpu")
-    parser.add_argument("--render", action="store_true")
+    parser.add_argument(
+        "--render", action="store_true", help="Render episodes in a window as they run."
+    )
     parser.add_argument("--seed", type=int, help="Override config seed.")
     parser.add_argument("--out_dir", help="Directory for per-episode CSV output.")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-    agent_name = Path(args.config).stem.split("_")[0].lower()
+    agent_name = infer_agent_name(args.config)
     seed = args.seed if args.seed is not None else cfg.get("seed", 0)
 
     set_seed(seed)
-    env = make_env(cfg["env_id"], seed=seed)
+    render_mode = "human" if args.render else None
+    env = make_env(cfg["env_id"], seed=seed, render_mode=render_mode)
     agent = build_agent(agent_name, env, cfg, device=args.device)
     agent.load(args.checkpoint)
 

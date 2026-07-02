@@ -2,9 +2,38 @@
 
 ![repo_logo](assets/rl_logo.svg)
 
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c)
+![Gymnasium](https://img.shields.io/badge/Gymnasium-0.29%2B-0a9edc)
+![Status](https://img.shields.io/badge/status-active%20development-yellow)
+
 Clean, well-documented implementations of core RL algorithms, built to demonstrate scientific rigour: reproducible experiments, structured evaluation, and clear learning curves.
 
+### Contents
 
+- [Demos](#demos)
+- [Algorithms](#algorithms)
+- [Repo structure](#repo-structure)
+- [Quick start](#quick-start)
+- [Design principles](#design-principles)
+
+---
+
+## Demos
+
+<table>
+<tr>
+<td align="center" width="50%">
+<img src="assets/demos/dqn_cartpole.gif" width="100%"><br>
+<b>DQN</b> · CartPole-v1 · greedy eval, return 500/500
+</td>
+<td align="center" width="50%">
+<i>More environments on the way — see the roadmap below.</i>
+</td>
+</tr>
+</table>
+
+GIFs are generated straight from a saved checkpoint with [`scripts/record_video.py --format gif`](scripts/record_video.py) (no manual editing), so they reflect what the agent actually does at eval time. Currently the repo only wraps classic-control / Box2D environments (CartPole, LunarLander, Pendulum) — MuJoCo/3D continuous-control demos are on the roadmap once an agent is trained there, not before.
 
 ---
 
@@ -13,13 +42,16 @@ Clean, well-documented implementations of core RL algorithms, built to demonstra
 | Algorithm | Type | Action Space | Status |
 |-----------|------|-------------|--------|
 | REINFORCE | On-policy PG | Discrete / Continuous | ✅ Done |
-| Actor-Critic | On-policy PG w/ baseline | Discrete / Continuous | ✅ Done |
+| Actor-Critic (A2C) | On-policy PG w/ baseline | Discrete / Continuous | ✅ Done |
 | PPO | On-policy actor-critic | Discrete / Continuous | ✅ Done |
-| DQN | Off-policy value | Discrete | ✅ Done |
-| SARSA (semi-gradient) | On-policy value | Discrete | ✅ Done |
+| DQN (+ Double, Dueling) | Off-policy value | Discrete | ✅ Done |
+| SARSA | On-policy value | Discrete | ✅ Done |
 | DDPG | Off-policy actor-critic | Continuous | ✅ Done |
-| TD3 | Off-policy actor-critic | Continuous | 🔜 |
-| SAC | Off-policy actor-critic | Continuous | 🔜 |
+| TD3 | Off-policy actor-critic | Continuous | ✅ Done |
+| SAC | Off-policy actor-critic | Continuous | ✅ Done |
+| MuJoCo / 3D continuous control | — | Continuous | 🔜 |
+
+Each algorithm's theory notes live next to its code, e.g. [`agents/dqn/README.md`](agents/dqn/README.md).
 
 ---
 
@@ -38,18 +70,21 @@ Reinforcement-Learning/
 │   ├── actor_critic/         # ActorCriticAgent (MC returns + learned baseline)
 │   ├── ppo/                  # PPOAgent + its own fixed-T rollout buffer
 │   ├── dqn/                  # DQNAgent (target net, soft updates, ε-greedy)
-│   ├── sarsa/                # SarsaAgent (semi-gradient, on-policy)
-│   └── ddpg/                 # DDPGAgent + actor/critic nets + exploration noise
+│   ├── sarsa/                # SarsaAgent (target network, mini-batch on-policy)
+│   ├── ddpg/                 # DDPGAgent + actor/critic nets + exploration noise
+│   ├── td3/                  # TD3Agent (twin critics, delayed policy updates)
+│   └── sac/                  # SACAgent (max-entropy, auto-tuned temperature)
 │       └── (each agent dir has agent.py, networks.py, and an algorithm README)
 │
 ├── common/
+│   ├── registry.py           # build_agent(): config -> agent instance, shared by all scripts
 │   ├── replay_buffer.py      # ReplayBuffer (off-policy) + RolloutBuffer (on-policy MC returns)
 │   ├── logger.py             # W&B + CSV logger
 │   ├── schedulers.py         # LinearSchedule, ExponentialSchedule (ε decay)
 │   └── utils.py              # build_mlp, soft_update, set_seed, load_config, explained_variance
 │
 ├── training/
-│   └── trainer.py            # Four loops: on-policy / actor-critic / ppo / off-policy / sarsa
+│   └── trainer.py            # Five loops: on-policy / actor-critic / ppo / sarsa / off-policy
 │
 ├── evaluation/
 │   └── evaluator.py          # evaluate_agent(), Evaluator (CSV export)
@@ -57,9 +92,11 @@ Reinforcement-Learning/
 ├── scripts/
 │   ├── train.py              # CLI: python scripts/train.py --config ...
 │   ├── evaluate.py           # CLI: evaluate a saved checkpoint
-│   └── record_video.py       # CLI: record an MP4 rollout of a trained policy
+│   └── record_video.py       # CLI: record an MP4 or GIF rollout of a trained policy
 │
-├── results/                  # Checkpoints, CSV metrics, W&B runs (git-ignored)
+├── notebooks/                # Analysis, learning curves, ablations
+├── assets/demos/             # Curated GIFs referenced from this README
+├── results/                  # Checkpoints, CSV metrics, W&B runs, videos/gifs (git-ignored)
 └── tests/
     └── test_core.py          # Unit tests for buffers, schedulers, save/load
 ```
@@ -87,6 +124,12 @@ python scripts/evaluate.py \
 
 # Record an MP4 of the trained policy (needs ffmpeg or imageio[ffmpeg])
 python scripts/record_video.py --config <cfg> --checkpoint <ckpt>
+
+# Record a checkpoint's rollout as a GIF (imageio, no ffmpeg needed)
+python scripts/record_video.py \
+    --config configs/dqn_cartpole.yaml \
+    --checkpoint results/checkpoints/dqn_cartpole/DQNAgent_ep1100.pt \
+    --format gif --max_frames 200 --output_dir assets/demos
 
 # Run tests
 pytest tests/ -v
