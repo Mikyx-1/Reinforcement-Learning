@@ -209,3 +209,6 @@ __marimo__/
 # Ignore saved weights
 *.pt
 *.pth
+
+# Training outputs (checkpoints, TensorBoard/CSV logs) — reproducible from configs
+/results/
