@@ -23,20 +23,24 @@ Clean, well-documented implementations of core RL algorithms, built to demonstra
 
 <table>
 <tr>
-<td align="center" width="50%">
+<td align="center" width="33%">
 <img src="assets/demos/dqn_cartpole.gif" width="100%"><br>
 <b>DQN</b> · CartPole-v1 · greedy eval, return 500/500
 </td>
-<td align="center" width="50%">
+<td align="center" width="33%">
 <img src="assets/demos/sac_hopper.gif" width="100%"><br>
 <b>SAC</b> · Hopper-v5 (MuJoCo, 3D) · greedy eval, return ≈3565, full 1000-step episode
+</td>
+<td align="center" width="33%">
+<img src="assets/demos/sac_humanoid.gif" width="100%"><br>
+<b>SAC</b> · Humanoid-v5 (MuJoCo, 3D, 17 DOF) · greedy eval, return ≈5147 ± 11, walks forward for the full 1000-step episode
 </td>
 </tr>
 </table>
 
-GIFs are generated straight from a saved checkpoint with [`scripts/record_video.py --format gif`](scripts/record_video.py) (no manual editing) — MuJoCo scenes need `--width`/`--height` and `--gif_colors` to keep the file size sane (a raw-resolution, full-palette GIF of Hopper hit 15MB; downscaled + palette-quantized it's ~1.5-2MB). See that script's usage examples for the exact command.
+GIFs are generated straight from a saved checkpoint with [`scripts/record_video.py --format gif`](scripts/record_video.py) (no manual editing) — MuJoCo scenes need `--width`/`--height` and `--gif_colors` to keep the file size sane (a raw-resolution, full-palette GIF hit 15MB; downscaled + palette-quantized it's ~1.5MB). See that script's usage examples for the exact command.
 
-**Humanoid-v5 (17 DOF) is training** — the genuinely hard 3D benchmark, typically needs several million steps for a real walking gait. It's running in the background; a demo will be added once it clears a reasonable bar, not before.
+The Humanoid-v5 policy went from falling over immediately to reliably walking forward the entire episode within ~500k steps, then plateaued around return ≈5100-5150 through step 750k with no further gait improvement — training was stopped there rather than run to the full 3M-step budget for no gain. Published SAC baselines typically reach 6000-10000+ given several million steps and continued refinement; this checkpoint is honestly "learned to walk," not "solved gracefully" — the arms in particular stay visibly stiff/uncoordinated, since Humanoid's reward is dominated by forward velocity and arm movement only affects balance recovery, a much weaker training signal.
 
 ---
 
@@ -53,7 +57,7 @@ GIFs are generated straight from a saved checkpoint with [`scripts/record_video.
 | TD3 | Off-policy actor-critic | Continuous | ✅ Done |
 | SAC | Off-policy actor-critic | Continuous | ✅ Done |
 | MuJoCo Hopper-v5 (3D) | via SAC | Continuous | ✅ Done — see demo above |
-| MuJoCo Humanoid-v5 (3D, 17 DOF) | via SAC | Continuous | 🚧 Training in background |
+| MuJoCo Humanoid-v5 (3D, 17 DOF) | via SAC | Continuous | ✅ Done — see demo above |
 
 Each algorithm's theory notes live next to its code, e.g. [`agents/dqn/README.md`](agents/dqn/README.md).
 
