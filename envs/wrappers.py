@@ -6,9 +6,15 @@ These follow the standard gymnasium.Wrapper API and can be stacked.
 
 from collections import deque
 
+import ale_py
 import flappy_bird_gymnasium  # noqa: F401  registers FlappyBird-v0 with gymnasium
 import gymnasium as gym
 import numpy as np
+from gymnasium.wrappers import AtariPreprocessing, FrameStackObservation
+
+import envs.network_routing  # noqa: F401  registers NetworkRouting-v0 with gymnasium
+
+gym.register_envs(ale_py)  # registers ALE/* (Atari) envs, e.g. ALE/Boxing-v5
 
 
 class NormalizeObservation(gym.ObservationWrapper):
@@ -114,6 +120,29 @@ class RecordEpisodeStats(gym.Wrapper):
         return obs, reward, terminated, truncated, info
 
 
+def add_atari_wrappers(env: gym.Env, frame_stack: int = 4, screen_size: int = 84) -> gym.Env:
+    """
+    Standard Atari preprocessing (Mnih et al., 2015): grayscale + resize to
+    screen_size, max-pool over 4 consecutive frames (removes flicker — some
+    sprites only render every other frame), then stack `frame_stack` frames
+    along a new leading axis so the observation becomes
+    (frame_stack, screen_size, screen_size) — already channel-first for a CNN.
+
+    Expects the base env to be built with frameskip=1 (e.g. `env_kwargs:
+    {frameskip: 1}`), since AtariPreprocessing does its own 4-frame skip with
+    max-pooling; ALE's built-in frameskip has no max-pool and would double up
+    with this wrapper's frame_skip=4 if left at its 'v5' default of 4.
+    """
+    env = AtariPreprocessing(
+        env,
+        screen_size=screen_size,
+        terminal_on_life_loss=False,
+        grayscale_obs=True,
+        scale_obs=False,
+    )
+    return FrameStackObservation(env, stack_size=frame_stack)
+
+
 def make_env(
     env_id: str,
     seed: int = 0,
@@ -123,25 +152,35 @@ def make_env(
     record_stats: bool = True,
     render_mode: str | None = None,
     env_kwargs: dict | None = None,
+    atari_preprocessing: bool = False,
+    frame_stack: int = 4,
 ) -> gym.Env:
     """
     Factory that builds and wraps an environment.
 
     Args:
-        env_id:        Gymnasium environment ID, e.g. 'CartPole-v1'.
-        seed:          RNG seed for reproducibility.
-        normalize_obs: Apply running-mean normalisation to observations.
-        clip_reward:   If set, clip rewards to ±clip_reward.
-        scale_reward:  If set, multiply rewards by this factor.
-        record_stats:  Attach RecordEpisodeStats wrapper.
-        render_mode:   Passed straight to gym.make(), e.g. 'human' or 'rgb_array'.
-        env_kwargs:    Extra constructor kwargs forwarded to gym.make(), e.g.
-                       {'use_lidar': False} for FlappyBird-v0's feature-vector obs.
+        env_id:              Gymnasium environment ID, e.g. 'CartPole-v1'.
+        seed:                RNG seed for reproducibility.
+        normalize_obs:       Apply running-mean normalisation to observations.
+        clip_reward:         If set, clip rewards to ±clip_reward.
+        scale_reward:        If set, multiply rewards by this factor.
+        record_stats:        Attach RecordEpisodeStats wrapper.
+        render_mode:         Passed straight to gym.make(), e.g. 'human' or 'rgb_array'.
+        env_kwargs:          Extra constructor kwargs forwarded to gym.make(), e.g.
+                             {'use_lidar': False} for FlappyBird-v0's feature-vector obs,
+                             or {'frameskip': 1} for Atari (see add_atari_wrappers).
+        atari_preprocessing: Apply add_atari_wrappers() — grayscale/resize/
+                             frame-skip/frame-stack, for ALE/* envs.
+        frame_stack:         Number of frames to stack when atari_preprocessing=True.
 
     Returns:
         Wrapped gymnasium.Env.
     """
     env = gym.make(env_id, render_mode=render_mode, **(env_kwargs or {}))
+
+    if atari_preprocessing:
+        env = add_atari_wrappers(env, frame_stack=frame_stack)
+
     env.reset(seed=seed)
 
     if record_stats:

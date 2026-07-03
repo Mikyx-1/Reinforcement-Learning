@@ -32,6 +32,16 @@ def main():
     parser.add_argument("--seed", type=int, help="Override config seed.")
     parser.add_argument("--device", default="cpu", help="'cpu' or 'cuda'.")
     parser.add_argument("--agent", help="Override agent name.")
+    parser.add_argument(
+        "--resume",
+        help=(
+            "Path to a checkpoint (.pt) to load weights/optimizer state from "
+            "before training. Only restores the agent's networks/optimizer — "
+            "the replay buffer starts empty and the Trainer's step/episode "
+            "counters restart at 0, so point --config at a config with its "
+            "own checkpoint_dir/log_dir to avoid overwriting the original run."
+        ),
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -46,10 +56,20 @@ def main():
     )
 
     # Build env
-    env = make_env(env_id, seed=seed, record_stats=True, env_kwargs=cfg.get("env_kwargs"))
+    env = make_env(
+        env_id,
+        seed=seed,
+        record_stats=True,
+        env_kwargs=cfg.get("env_kwargs"),
+        atari_preprocessing=cfg.get("atari_preprocessing", False),
+        frame_stack=cfg.get("frame_stack", 4),
+    )
 
     # Build agent
     agent = build_agent(agent_name, env, cfg, device=args.device)
+    if args.resume:
+        agent.load(args.resume)
+        print(f"[train.py] Resumed weights from {args.resume}")
     print(f"[train.py] {agent}")
 
     # Build logger
@@ -87,7 +107,7 @@ def main():
     if agent_name in ("reinforce", "actor"):
         trainer.train_on_policy()
 
-    elif agent_name == "ppo":
+    elif agent_name in ("ppo", "gnnppo"):
         trainer.train_ppo()
 
     elif agent_name == "sarsa":

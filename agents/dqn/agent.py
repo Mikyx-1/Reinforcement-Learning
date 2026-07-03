@@ -45,7 +45,12 @@ import torch.nn as nn
 import torch.optim as optim
 
 from agents.base_agent import BaseAgent
-from agents.dqn.networks import DuelingQNetwork, QNetwork
+from agents.dqn.networks import (
+    CNNDuelingQNetwork,
+    CNNQNetwork,
+    DuelingQNetwork,
+    QNetwork,
+)
 from common.schedulers import LinearSchedule
 from common.utils import hard_update, soft_update
 
@@ -56,9 +61,14 @@ class DQNAgent(BaseAgent):
 
     Only works with discrete action spaces.
 
+    Auto-detects image observations: if env.observation_space.shape has 3
+    dims (e.g. (4, 84, 84) stacked Atari frames from
+    envs.wrappers.add_atari_wrappers), uses a Nature-DQN CNN Q-network
+    instead of the MLP — hidden_dims is ignored in that case.
+
     Args:
         env:                  gymnasium.Env (used for space inference only).
-        hidden_dims:          Hidden layer sizes for the Q-network.
+        hidden_dims:          Hidden layer sizes for the Q-network (MLP obs only).
         lr:                   Adam learning rate.
         gamma:                Discount factor γ.
         eps_start:            Initial ε for ε-greedy exploration.
@@ -87,8 +97,10 @@ class DQNAgent(BaseAgent):
         assert isinstance(
             env.action_space, gym.spaces.Discrete
         ), "DQNAgent only supports discrete action spaces."
-        obs_dim = int(np.prod(env.observation_space.shape))
+        obs_shape = env.observation_space.shape
+        obs_dim = int(np.prod(obs_shape))
         act_dim = env.action_space.n
+        use_cnn = len(obs_shape) == 3
 
         super().__init__(obs_dim=obs_dim, act_dim=act_dim, device=device)
 
@@ -105,9 +117,15 @@ class DQNAgent(BaseAgent):
         self.epsilon = eps_start
 
         # Q-networks (online + frozen target)
-        NetClass = DuelingQNetwork if use_dueling else QNetwork
-        self.q_net = NetClass(obs_dim, act_dim, hidden_dims).to(self.device)
-        self.q_target = NetClass(obs_dim, act_dim, hidden_dims).to(self.device)
+        if use_cnn:
+            in_channels = obs_shape[0]
+            NetClass = CNNDuelingQNetwork if use_dueling else CNNQNetwork
+            self.q_net = NetClass(in_channels, act_dim).to(self.device)
+            self.q_target = NetClass(in_channels, act_dim).to(self.device)
+        else:
+            NetClass = DuelingQNetwork if use_dueling else QNetwork
+            self.q_net = NetClass(obs_dim, act_dim, hidden_dims).to(self.device)
+            self.q_target = NetClass(obs_dim, act_dim, hidden_dims).to(self.device)
         hard_update(self.q_target, self.q_net)  # start with identical weights
         self.q_target.eval()  # target never trains directly
 

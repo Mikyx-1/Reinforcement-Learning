@@ -399,7 +399,13 @@ class Trainer:
             next_obs, reward, terminated, truncated, info = self.env.step(action)
             done = terminated or truncated
 
-            replay_buffer.push(obs, action, float(reward), next_obs, done)
+            # Bootstrap mask must reflect true MDP termination only. A
+            # time-limit `truncated` episode end is not a death — zeroing
+            # the target there teaches the critic that surviving to the
+            # step limit has no future value, which is wrong and, for
+            # envs like Humanoid where most episodes end via truncation,
+            # systematically drags every Q-value down.
+            replay_buffer.push(obs, action, float(reward), next_obs, terminated)
             obs = next_obs
             episode_return += float(reward)
             self.agent.on_step_end(self.global_step)

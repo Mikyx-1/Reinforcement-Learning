@@ -29,6 +29,13 @@ def _apply_init(net: nn.Sequential) -> None:
         init_weights(layer, gain=gain)
 
 
+def _apply_conv_init(net: nn.Sequential) -> None:
+    """Orthogonal init, gain=√2, for every Conv2d layer (all are followed by ReLU)."""
+    for m in net:
+        if isinstance(m, nn.Conv2d):
+            init_weights(m, gain=2**0.5)
+
+
 class QNetwork(nn.Module):
     """
     Vanilla MLP Q-network.
@@ -123,3 +130,90 @@ class DuelingQNetwork(nn.Module):
         # Subtract mean advantage for identifiability
         q = value + adv - adv.mean(dim=-1, keepdim=True)  # (B, act_dim)
         return q
+
+
+def _conv_trunk(in_channels: int) -> nn.Sequential:
+    """Nature DQN conv trunk (Mnih et al., 2015): 3 conv layers over an 84x84 input."""
+    return nn.Sequential(
+        nn.Conv2d(in_channels, 32, kernel_size=8, stride=4),
+        nn.ReLU(),
+        nn.Conv2d(32, 64, kernel_size=4, stride=2),
+        nn.ReLU(),
+        nn.Conv2d(64, 64, kernel_size=3, stride=1),
+        nn.ReLU(),
+        nn.Flatten(),
+    )
+
+
+def _conv_out_dim(conv: nn.Sequential, in_channels: int, screen_size: int = 84) -> int:
+    with torch.no_grad():
+        return conv(torch.zeros(1, in_channels, screen_size, screen_size)).shape[1]
+
+
+class CNNQNetwork(nn.Module):
+    """
+    Nature DQN Q-network (Mnih et al., 2015) for stacked-frame Atari observations.
+
+    obs (in_channels, 84, 84) → conv trunk → FC 512 → Q(s, a) for all a.
+
+    Pixel values are divided by 255 inside forward() so the replay buffer can
+    keep storing raw uint8 frames (a 4x84x84 frame stack is ~28KB as uint8,
+    4x that as float32) — normalisation happens only on the sampled
+    mini-batch, not on every stored transition.
+
+    Args:
+        in_channels: Number of stacked frames (channel dim of the input).
+        act_dim:     Number of discrete actions.
+        fc_dim:      Hidden size of the FC layer between the conv trunk and output.
+    """
+
+    def __init__(self, in_channels: int, act_dim: int, fc_dim: int = 512):
+        super().__init__()
+        self.conv = _conv_trunk(in_channels)
+        conv_out_dim = _conv_out_dim(self.conv, in_channels)
+        self.head = nn.Sequential(
+            nn.Linear(conv_out_dim, fc_dim),
+            nn.ReLU(),
+            nn.Linear(fc_dim, act_dim),
+        )
+        _apply_conv_init(self.conv)
+        _apply_init(self.head)
+
+    def forward(self, obs: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            obs: (B, in_channels, 84, 84), raw pixel values in [0, 255].
+        Returns:
+            Q values: (B, act_dim)
+        """
+        x = obs.float() / 255.0
+        return self.head(self.conv(x))
+
+
+class CNNDuelingQNetwork(nn.Module):
+    """Dueling variant of CNNQNetwork — same conv trunk, split value/advantage FC heads."""
+
+    def __init__(self, in_channels: int, act_dim: int, fc_dim: int = 512):
+        super().__init__()
+        self.conv = _conv_trunk(in_channels)
+        conv_out_dim = _conv_out_dim(self.conv, in_channels)
+        self.value_head = nn.Sequential(
+            nn.Linear(conv_out_dim, fc_dim), nn.ReLU(), nn.Linear(fc_dim, 1)
+        )
+        self.advantage_head = nn.Sequential(
+            nn.Linear(conv_out_dim, fc_dim), nn.ReLU(), nn.Linear(fc_dim, act_dim)
+        )
+        _apply_conv_init(self.conv)
+        _apply_init(self.value_head)
+        _apply_init(self.advantage_head)
+
+    def forward(self, obs: torch.Tensor) -> torch.Tensor:
+        """
+        Returns:
+            Q values: (B, act_dim)
+        """
+        x = obs.float() / 255.0
+        feat = self.conv(x)
+        value = self.value_head(feat)  # (B, 1)
+        adv = self.advantage_head(feat)  # (B, act_dim)
+        return value + adv - adv.mean(dim=-1, keepdim=True)  # (B, act_dim)

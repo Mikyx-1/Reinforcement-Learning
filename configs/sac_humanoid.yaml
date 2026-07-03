@@ -44,7 +44,7 @@ training:
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
   log_dir: results/runs/sac_humanoid
-  use_wandb: false
+  use_wandb: true
   wandb_config:
     project: "Reinforcement-Learning"
     group: sac_humanoid

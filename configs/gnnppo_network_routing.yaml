@@ -1,0 +1,68 @@
+# GNN-PPO on NetworkRoutingEnv (custom — see envs/network_routing.py)
+# ──────────────────────────────────────────────────────────────────────
+# A Q-routing-style packet simulator: the same policy makes every hop
+# decision network-wide, so congestion is entirely self-induced. Baselines
+# to compare against (scripts/visualize_network_env.py --policy ...):
+#   random         — sanity floor
+#   shortest_path  — static-delay Dijkstra; strong at low load, congestion-blind
+#
+# Loop: collect T=1024 decisions -> GAE -> K=8 epochs x mini-batches (same
+# train_ppo() loop as agents/ppo — see PPOAgent docstring).
+
+env_id: NetworkRouting-v0
+seed: 42
+
+# ── Env ───────────────────────────────────────────────────────────────
+env_kwargs:
+  num_nodes: 15
+  arrival_rate: 0.5          # high enough that congestion actually happens
+  max_ticks: 300
+  edge_capacity_range: [3, 8]
+  edge_delay_range: [1, 5]
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  # Separate actor/critic GNN encoders (same rationale as agents/ppo:
+  # K-epoch reuse needs decoupled policy/value gradients)
+  hidden_dim: 64
+  n_layers: 2                # message-passing rounds; 2 = sees 2-hop neighborhood
+
+  lr: 3.0e-4
+  gamma: 0.99
+
+  lam: 0.95
+  clip_eps: 0.2
+
+  n_epochs: 8
+  batch_size: 128
+  rollout_steps: 1024        # decisions collected before each update
+
+  vf_coef: 0.5
+  ent_coef: 0.02             # slightly higher than MLP-PPO — masked action
+                             # space benefits from extra exploration pressure
+
+  max_grad_norm: 0.5
+  clip_value_loss: true
+  target_kl: 0.02
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 300_000
+  eval_interval: 20
+  save_interval: 50
+  checkpoint_dir: results/checkpoints/gnnppo_network_routing
+  print_freq: 10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/gnnppo_network_routing
+  use_wandb: true
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: gnnppo_network_routing
+
+# ── Notes ─────────────────────────────────────────────────────────────
+#   The right comparison isn't "did return go up" — it's mean delivery
+#   latency / drop rate vs. the shortest_path baseline at the SAME
+#   arrival_rate, since that's the metric that reveals whether the learned
+#   policy is actually routing around self-induced congestion.

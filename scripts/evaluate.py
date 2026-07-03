@@ -47,7 +47,12 @@ def main():
     set_seed(seed)
     render_mode = "human" if args.render else None
     env = make_env(
-        cfg["env_id"], seed=seed, render_mode=render_mode, env_kwargs=cfg.get("env_kwargs")
+        cfg["env_id"],
+        seed=seed,
+        render_mode=render_mode,
+        env_kwargs=cfg.get("env_kwargs"),
+        atari_preprocessing=cfg.get("atari_preprocessing", False),
+        frame_stack=cfg.get("frame_stack", 4),
     )
     agent = build_agent(agent_name, env, cfg, device=args.device)
     agent.load(args.checkpoint)

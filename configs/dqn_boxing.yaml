@@ -1,0 +1,98 @@
+# DQN (Double + Dueling, CNN) on ALE/Boxing-v5
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean eval return clearly > 0 and trending toward the
+#                   max score of 100 (each landed punch is +1, each punch
+#                   taken is -1; a win is any positive score, "winning
+#                   convincingly" is score >> 0). Random policy averages
+#                   close to 0; a strong DQN reaches 80-95+.
+# Expected        : several million steps before eval return is reliably
+#                   positive; tens of millions to approach max score.
+#                   Boxing is one of the easier ALE games for value-based
+#                   methods (no long-horizon credit assignment), and is
+#                   specifically one where the Dueling architecture
+#                   (Wang et al., 2016) showed a large improvement over
+#                   vanilla DQN, hence use_dueling: true below.
+# Action space    : Discrete(18) — the full joystick+button combo set.
+# Observation     : (4, 84, 84) uint8 — grayscale, resized, 4-frame stack
+#                   (envs/wrappers.py:add_atari_wrappers). DQNAgent
+#                   auto-detects the 3-D shape and switches to a CNN
+#                   Q-network (agents/dqn/networks.py), hidden_dims below
+#                   is unused in that path.
+# Loop            : train_off_policy() — step -> ReplayBuffer -> sample -> update
+#
+# Memory note: the replay buffer stores raw uint8 frame stacks (no
+# normalization until the sampled mini-batch hits the network), but obs
+# and next_obs are stored separately, so buffer_size: 100_000 needs
+# roughly 100_000 * 4*84*84 bytes * 2 ~= 5.3 GB of RAM. Lower buffer_size
+# if that doesn't fit.
+
+env_id: ALE/Boxing-v5
+seed: 42
+
+# frameskip: 1 because add_atari_wrappers() does its own 4-frame skip with
+# max-pooling (removes flicker); leaving ALE's built-in v5 frameskip=4 would
+# double up frame-skipping. repeat_action_probability keeps its v5 default
+# (0.25, "sticky actions") for reproducibility with published baselines.
+env_kwargs:
+  frameskip: 1
+
+atari_preprocessing: true
+frame_stack: 4
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [512]   # unused — CNN is auto-selected for (4, 84, 84) obs
+
+  lr: 1.0e-4            # standard Atari DQN Adam LR (Nature used RMSProp 2.5e-4;
+                         # Adam converges well at ~1e-4 for this conv size)
+  gamma: 0.99
+
+  # ε-greedy exploration schedule — annealed over a large step budget since
+  # a CNN needs far more varied experience than the MLP envs in this repo
+  eps_start: 1.0
+  eps_end: 0.01
+  eps_decay_steps: 1_000_000
+
+  # Target network (soft update every target_update_freq steps, see
+  # DQNAgent.on_step_end)
+  target_update_freq: 1_000
+
+  # Architecture variants
+  use_double: true     # Double DQN (van Hasselt et al., 2016) — reduces
+                         # the Q-value overestimation vanilla DQN suffers from
+  use_dueling: true     # Dueling (Wang et al., 2016) — Boxing is one of the
+                         # ALE games where this gave the largest reported gain
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 5_000_000
+  warmup_steps: 50_000     # random exploration before any updates
+  batch_size: 32           # standard Atari DQN mini-batch size
+  buffer_size: 100_000      # ~5.3 GB RAM as uint8 frame stacks — see note above
+  update_every: 4           # sample/update every 4 env steps (Nature DQN cadence)
+  eval_interval: 20
+  save_interval: 50
+  checkpoint_dir: results/checkpoints/dqn_boxing
+  print_freq: 10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/dqn_boxing
+  use_wandb: true
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: dqn_boxing
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Tuning guidance:
+#   - Episodes are ~1500-1800 steps (Boxing rounds are time-limited, not
+#     life-limited), so eval_interval: 20 episodes is still frequent
+#     relative to max_steps.
+#   - If mean_q diverges or loss explodes, lower lr to 5e-5 first before
+#     touching anything else — CNNs are more sensitive to LR than the
+#     small MLPs elsewhere in this repo.
+#   - If training is too slow on CPU, use --device cuda; the conv trunk
+#     is the standard Nature DQN size and benefits heavily from a GPU.
+#   - Run scripts/evaluate.py periodically on saved checkpoints — mean
+#     return crossing 0 and climbing is the first sign the agent is
+#     actually winning exchanges, not just surviving.

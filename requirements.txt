@@ -1,6 +1,8 @@
 gymnasium>=0.29.0
 mujoco>=3.0.0          # backend for gymnasium's MuJoCo envs (Hopper, Humanoid, etc.)
 flappy-bird-gymnasium>=0.4.0   # registers FlappyBird-v0 with gymnasium on import
+ale-py>=0.10.0          # registers ALE/* (Atari) envs, e.g. ALE/Boxing-v5; ROMs bundled since v0.7+
+opencv-python-headless>=4.8.0  # required by gymnasium.wrappers.AtariPreprocessing (frame resize)
 torch>=2.0.0
 numpy>=1.24.0
 pyyaml>=6.0
