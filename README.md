@@ -11,11 +11,13 @@ Clean, well-documented implementations of core RL algorithms, built to demonstra
 
 ### Contents
 
-- [Demos](#demos)
-- [Algorithms](#algorithms)
-- [Repo structure](#repo-structure)
-- [Quick start](#quick-start)
-- [Design principles](#design-principles)
+- [Reinforcement Learning Zoo](#reinforcement-learning-zoo)
+    - [Contents](#contents)
+  - [Demos](#demos)
+  - [Algorithms](#algorithms)
+  - [Repo structure](#repo-structure)
+  - [Quick start](#quick-start)
+  - [Design principles](#design-principles)
 
 ---
 
@@ -33,7 +35,7 @@ Clean, well-documented implementations of core RL algorithms, built to demonstra
 </td>
 <td align="center" width="33%">
 <img src="assets/demos/sac_humanoid.gif" width="100%"><br>
-<b>SAC</b> · Humanoid-v5 (MuJoCo, 3D, 17 DOF) · greedy eval, return ≈5147 ± 11, walks forward for the full 1000-step episode
+<b>SAC</b> · Humanoid-v5 (MuJoCo, 3D, 17 DOF) · greedy eval, return ≈5512 ± 25 over 20 episodes, full 1000-step episode every time
 </td>
 </tr>
 <tr>
@@ -68,10 +70,6 @@ GIFs are generated straight from a saved checkpoint with [`scripts/record_video.
 | DDPG | Off-policy actor-critic | Continuous | ✅ Done |
 | TD3 | Off-policy actor-critic | Continuous | ✅ Done |
 | SAC | Off-policy actor-critic | Continuous | ✅ Done |
-| MuJoCo Hopper-v5 (3D) | via SAC | Continuous | ✅ Done — see demo above |
-| MuJoCo Humanoid-v5 (3D, 17 DOF) | via SAC | Continuous | ✅ Done — see demo above |
-| FlappyBird-v0 (flappy-bird-gymnasium) | via PPO | Discrete | ✅ Done — see demo above |
-| GNN-PPO (custom graph policy) | via PPO, NetworkRoutingEnv | Discrete (masked) | ✅ Done — matches shortest-path baseline, see demo above |
 
 Each algorithm's theory notes live next to its code, e.g. [`agents/dqn/README.md`](agents/dqn/README.md).
 
