@@ -1,0 +1,81 @@
+# PPO-Clip on FlappyBird-v0 (flappy-bird-gymnasium)
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return clearly > ~5 (pipe-clearing) over 20 eval
+#                   episodes — dqn_flappybird.yaml's DQN run plateaued at
+#                   ~4.2, i.e. it never learned to clear a single pipe
+# Expected        : ~1-2M steps
+# Action space    : Discrete(2) — 0 = do nothing, 1 = flap
+# Observation     : 12-dim feature vector (env_kwargs.use_lidar: false)
+# Loop            : train_ppo() — fixed-T rollout (may span episodes),
+#                   then K-epoch mini-batch update
+#
+# Why PPO over DQN here: on-policy exploration via entropy bonus keeps
+# sampling both actions throughout training (rather than annealing to a
+# near-greedy epsilon), which matters when the only useful signal —
+# passing a pipe — is rare and easy for an off-policy epsilon floor to
+# never stumble into.
+
+env_id: FlappyBird-v0
+seed: 42
+
+env_kwargs:
+  use_lidar: false
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [256, 256]   # same size as dqn_flappybird.yaml
+
+  lr: 3.0e-4
+  gamma: 0.99
+
+  # GAE
+  lam: 0.95
+
+  # Clipping
+  clip_eps: 0.2
+
+  # Update schedule
+  n_epochs: 10
+  batch_size: 64
+  rollout_steps: 2048       # long rollout — episodes are short (~50-90
+                             # steps) before the bird learns to clear pipes,
+                             # so this still covers dozens of episodes/update
+
+  # Loss coefficients
+  vf_coef: 0.5
+  ent_coef: 0.02             # higher than CartPole/LunarLander — sparse
+                              # pipe-passing reward needs sustained
+                              # exploration of both actions, not just early on
+
+  # Stability
+  max_grad_norm: 0.5
+  clip_value_loss: true
+  target_kl: 0.015
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 2_000_000
+  eval_interval: 20
+  save_interval: 50
+  checkpoint_dir: results/checkpoints/ppo_flappybird
+  print_freq: 10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/ppo_flappybird
+  use_wandb: true
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: ppo_flappybird
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Tuning guidance:
+#   - If entropy collapses before any pipe is cleared → raise ent_coef to 0.05
+#   - If approx_kl spikes repeatedly → lower lr to 1e-4 or clip_eps to 0.1
+#   - If explained_variance stays low → the critic isn't tracking value well;
+#     try a longer rollout_steps (4096) for lower-variance GAE
+#
+# Compared to dqn_flappybird.yaml:
+#   - No epsilon schedule — exploration comes from the stochastic policy +
+#     ent_coef, which doesn't anneal away like DQN's epsilon floor did
+#   - rollout_steps=2048, K=10 epochs: on-policy, no replay buffer needed

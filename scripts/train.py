@@ -46,7 +46,7 @@ def main():
     )
 
     # Build env
-    env = make_env(env_id, seed=seed, record_stats=True)
+    env = make_env(env_id, seed=seed, record_stats=True, env_kwargs=cfg.get("env_kwargs"))
 
     # Build agent
     agent = build_agent(agent_name, env, cfg, device=args.device)
