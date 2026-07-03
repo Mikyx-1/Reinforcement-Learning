@@ -25,7 +25,7 @@ import numpy as np
 from envs.network_routing import NetworkRoutingEnv
 
 
-def shortest_path_action(env: NetworkRoutingEnv, obs: dict, info: dict) -> int:
+def shortest_path_action(env: NetworkRoutingEnv, obs: dict, info: dict, agent=None) -> int:
     """Baseline: greedily hop towards the destination via the delay-weighted shortest path."""
     current = info["current_node"]
     dest = info["destination_node"]
@@ -34,12 +34,17 @@ def shortest_path_action(env: NetworkRoutingEnv, obs: dict, info: dict) -> int:
     return env.neighbors[current].index(nxt)
 
 
-def random_action(env: NetworkRoutingEnv, obs: dict, info: dict) -> int:
+def random_action(env: NetworkRoutingEnv, obs: dict, info: dict, agent=None) -> int:
     valid = np.flatnonzero(obs["action_mask"])
     return int(env.np_random.choice(valid))
 
 
-POLICIES = {"random": random_action, "shortest_path": shortest_path_action}
+def gnn_ppo_action(env: NetworkRoutingEnv, obs: dict, info: dict, agent) -> int:
+    action, _ = agent.select_action(obs, deterministic=True)
+    return int(action)
+
+
+POLICIES = {"random": random_action, "shortest_path": shortest_path_action, "gnn_ppo": gnn_ppo_action}
 
 
 def main():
@@ -54,6 +59,8 @@ def main():
     parser.add_argument("--width", type=int, default=None, help="downscale frames to this width (keeps aspect ratio)")
     parser.add_argument("--gif_colors", type=int, default=128, help="palette size for GIF export")
     parser.add_argument("--output", default=None)
+    parser.add_argument("--config", default=None, help="Required for --policy gnn_ppo (builds the agent's network shapes).")
+    parser.add_argument("--checkpoint", default=None, help="Required for --policy gnn_ppo.")
     args = parser.parse_args()
 
     env = NetworkRoutingEnv(
@@ -64,12 +71,21 @@ def main():
     )
     policy_fn = POLICIES[args.policy]
 
+    agent = None
+    if args.policy == "gnn_ppo":
+        assert args.config and args.checkpoint, "--policy gnn_ppo requires --config and --checkpoint."
+        from common.registry import build_agent
+        from common.utils import load_config
+
+        agent = build_agent("gnnppo", env, load_config(args.config), device="cpu")
+        agent.load(args.checkpoint)
+
     obs, info = env.reset(seed=args.seed)
     frames = [env.render()]
     step_count = 0
 
     while info["tick"] < args.ticks:
-        action = policy_fn(env, obs, info)
+        action = policy_fn(env, obs, info, agent)
         obs, reward, terminated, truncated, info = env.step(action)
         step_count += 1
         if step_count % args.render_every == 0:

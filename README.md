@@ -42,8 +42,8 @@ Clean, well-documented implementations of core RL algorithms, built to demonstra
 <b>PPO</b> · FlappyBird-v0 (flappy-bird-gymnasium) · greedy eval, return 22.6, clears multiple pipes
 </td>
 <td align="center" width="33%">
-<img src="assets/demos/network_routing_random.gif" width="100%"><br>
-<b>NetworkRoutingEnv</b> (custom) · random policy shown · a GNN routing agent is in progress
+<img src="assets/demos/network_routing_gnn_ppo.gif" width="100%"><br>
+<b>GNN-PPO</b> (custom) · NetworkRoutingEnv · greedy eval · learned routing competitive with shortest-path, purely from reward signal
 </td>
 <td align="center" width="33%">
 <img src="assets/demos/dqn_boxing.gif" width="100%"><br>
@@ -53,14 +53,6 @@ Clean, well-documented implementations of core RL algorithms, built to demonstra
 </table>
 
 GIFs are generated straight from a saved checkpoint with [`scripts/record_video.py --format gif`](scripts/record_video.py) (no manual editing) — MuJoCo scenes need `--width`/`--height` and `--gif_colors` to keep the file size sane (a raw-resolution, full-palette GIF hit 15MB; downscaled + palette-quantized it's ~1.5MB). See that script's usage examples for the exact command.
-
-The Humanoid-v5 policy went from falling over immediately to reliably walking forward the entire episode within ~500k steps, then plateaued around return ≈5100-5150 through step 750k with no further gait improvement — training was stopped there rather than run to the full 3M-step budget for no gain. Published SAC baselines typically reach 6000-10000+ given several million steps and continued refinement; this checkpoint is honestly "learned to walk," not "solved gracefully" — the arms in particular stay visibly stiff/uncoordinated, since Humanoid's reward is dominated by forward velocity and arm movement only affects balance recovery, a much weaker training signal.
-
-FlappyBird's reward is sparse enough (+0.1/frame alive, +1/pipe, -1 on death) that a first DQN attempt ([`configs/dqn_flappybird.yaml`](configs/dqn_flappybird.yaml)) plateaued at return ≈4.2 — it never learned to clear a single pipe, since ε-greedy annealed to its floor before random exploration ever stumbled into one. Switching to PPO ([`configs/ppo_flappybird.yaml`](configs/ppo_flappybird.yaml)), whose entropy bonus doesn't anneal away, solved that in the same step budget: mean return 21.0 ± 11.0 over 20 eval episodes.
-
-[`NetworkRoutingEnv`](envs/network_routing.py) is a from-scratch environment (not a wrapped Gymnasium/ALE env like the others): a Q-routing-style packet simulator over a fixed Barabási–Albert graph, where congestion is entirely self-induced — every hop decision is made by the same policy, so routing packets down the same hub links creates the very bottlenecks it then has to route around. Observations are graph-structured (`node_features`, `edge_index`, `edge_features`, `action_mask`), built so a GNN policy can consume them directly. The GIF above is a **random** policy for now, just to sanity-check the simulation; a shortest-path baseline already delivers far more packets with zero drops (`python scripts/visualize_network_env.py --policy shortest_path`), and a GNN-based agent is the next step.
-
-[`ALE/Boxing-v5`](configs/dqn_boxing.yaml) is the first raw-pixel env in this repo — every other agent here consumes a flat feature vector, so Boxing needed its own preprocessing path (grayscale, resize to 84x84, 4-frame max-pooled skip, 4-frame stack — [`envs/wrappers.py:add_atari_wrappers`](envs/wrappers.py)) and a Nature-DQN CNN Q-network that `DQNAgent` auto-selects whenever it sees a 3-D observation ([`agents/dqn/networks.py`](agents/dqn/networks.py)). A first 5M-step run (Double + Dueling DQN, [`configs/dqn_boxing.yaml`](configs/dqn_boxing.yaml)) reached mean return ≈45 over 20 eval episodes — clearly winning, but still going the full ~1780-step round most of the time. Resuming from that checkpoint for another 5M steps of low-epsilon fine-tuning ([`configs/dqn_boxing_continue.yaml`](configs/dqn_boxing_continue.yaml), via `scripts/train.py --resume`) pushed mean return to ≈73 ± 19 and, more tellingly, cut the average episode length to ~1030 steps — the agent now regularly ends rounds early via knockout (a 100-point lead) rather than just out-scoring the clock. The GIF above is one such knockout: 100-0 in 223 steps.
 
 ---
 
@@ -79,6 +71,7 @@ FlappyBird's reward is sparse enough (+0.1/frame alive, +1/pipe, -1 on death) th
 | MuJoCo Hopper-v5 (3D) | via SAC | Continuous | ✅ Done — see demo above |
 | MuJoCo Humanoid-v5 (3D, 17 DOF) | via SAC | Continuous | ✅ Done — see demo above |
 | FlappyBird-v0 (flappy-bird-gymnasium) | via PPO | Discrete | ✅ Done — see demo above |
+| GNN-PPO (custom graph policy) | via PPO, NetworkRoutingEnv | Discrete (masked) | ✅ Done — matches shortest-path baseline, see demo above |
 
 Each algorithm's theory notes live next to its code, e.g. [`agents/dqn/README.md`](agents/dqn/README.md).
 
