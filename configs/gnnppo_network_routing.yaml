@@ -28,7 +28,11 @@ agent:
   n_layers: 2                # message-passing rounds; 2 = sees 2-hop neighborhood
 
   lr: 3.0e-4
-  gamma: 0.99
+  gamma: 0.9                # was 0.99 — buffer interleaves many packets' decisions, so
+                             # V(s_t+1) in GAE usually bootstraps off an unrelated
+                             # packet's state; explained_variance stayed ~0 the whole
+                             # first run. Lower gamma leans less on that broken
+                             # bootstrap and more on the (correct) immediate reward.
 
   lam: 0.95
   clip_eps: 0.2
