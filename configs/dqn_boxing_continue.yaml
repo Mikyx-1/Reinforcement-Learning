@@ -1,0 +1,88 @@
+# DQN (Double + Dueling, CNN) on ALE/Boxing-v5 — CONTINUED TRAINING
+# ──────────────────────────────────────────────────────────────────────
+# Resumes Q-network + optimizer weights from a checkpoint produced by
+# configs/dqn_boxing.yaml (via scripts/train.py --resume) and trains for
+# more steps, aiming for more decisive/frequent wins (Boxing ends
+# immediately in a KO if one boxer builds a 100-point lead).
+#
+# What does NOT carry over from the previous run (scripts/train.py
+# --resume only calls DQNAgent.load(), nothing else is serialized):
+#   - The replay buffer starts EMPTY and refills during warmup_steps +
+#     early training. This is fine here — the policy is already decent
+#     and near-greedy, so it fills the buffer with good self-play data
+#     rather than the random junk a from-scratch warmup would collect.
+#   - global_step/episode counters restart at 0 for THIS run's own
+#     checkpoint_dir/log_dir (kept separate below so nothing from the
+#     original dqn_boxing run gets overwritten).
+#
+# Usage:
+#   python scripts/train.py --config configs/dqn_boxing_continue.yaml \
+#       --resume results/checkpoints/dqn_boxing/DQNAgent_ep2750.pt \
+#       --device cuda:2
+
+env_id: ALE/Boxing-v5
+seed: 43   # different from the original run, for fresh env/exploration randomness
+
+env_kwargs:
+  frameskip: 1
+
+atari_preprocessing: true
+frame_stack: 4
+
+# ── Agent ─────────────────────────────────────────────────────────────
+# use_dueling/use_double must match the checkpoint being resumed, or
+# DQNAgent.load()'s state_dict load will raise a shape/key mismatch.
+agent:
+  hidden_dims: [512]    # unused — CNN auto-selected for (4, 84, 84) obs
+
+  lr: 5.0e-5             # lower than the original 1e-4 — fine-tuning an
+                          # already-decent policy benefits from smaller,
+                          # more stable steps rather than the larger
+                          # from-scratch learning rate
+  gamma: 0.99
+
+  # Low epsilon throughout: this agent already plays well, so we don't
+  # want a fresh eps_start=1.0 random-exploration phase like a from-
+  # scratch run. A small bump above eps_end gives it room to escape any
+  # local optimum before settling back to mostly-greedy play.
+  eps_start: 0.1
+  eps_end: 0.01
+  eps_decay_steps: 200_000
+
+  target_update_freq: 1_000
+  use_double: true
+  use_dueling: true
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 5_000_000     # additional steps for this phase — the
+                            # Trainer's own step counter restarts at 0,
+                            # this is not a cumulative target
+  warmup_steps: 5_000       # short: just enough to refill the empty
+                            # replay buffer before updates start
+  batch_size: 32
+  buffer_size: 100_000       # ~5.3 GB RAM — see configs/dqn_boxing.yaml note
+  update_every: 4
+  eval_interval: 20
+  save_interval: 50
+  checkpoint_dir: results/checkpoints/dqn_boxing_continue
+  print_freq: 10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/dqn_boxing_continue
+  use_wandb: true
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: dqn_boxing_continue
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# "Knockout fast" (100-point lead ends the round immediately) is a very
+# high bar: it means landing on the order of 100 more punches than you
+# take inside a ~1780-step round without ever falling far behind. The
+# best checkpoint from the first run (ep2750) already produced single
+# episodes scoring as high as 99/100 in a 20-episode eval; more training
+# from here should raise how OFTEN that level of dominance happens, not
+# just the ceiling — track eval/mean_return and eval/std_return (the std
+# shrinking while the mean stays high is the real signal of consistent
+# knockout-caliber play, not just a lucky episode).

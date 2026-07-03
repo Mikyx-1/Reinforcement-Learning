@@ -13,7 +13,7 @@ import gymnasium as gym
 from agents.base_agent import BaseAgent
 
 # Config filename stem (before the first "_") -> agent name understood here.
-AGENT_NAMES = ("reinforce", "actor", "ppo", "dqn", "sarsa", "ddpg", "td3", "sac")
+AGENT_NAMES = ("reinforce", "actor", "ppo", "gnnppo", "dqn", "sarsa", "ddpg", "td3", "sac")
 
 
 def infer_agent_name(config_path: str | Path) -> str:
@@ -70,6 +70,28 @@ def build_agent(name: str, env: gym.Env, cfg: dict[str, Any], device: str = "cpu
             device=device,
         )
 
+    if name == "gnnppo":
+        from agents.gnn_ppo.agent import GNNPPOAgent
+
+        return GNNPPOAgent(
+            env=env,
+            hidden_dim=agent_cfg.get("hidden_dim", 64),
+            n_layers=agent_cfg.get("n_layers", 2),
+            lr=agent_cfg["lr"],
+            gamma=agent_cfg["gamma"],
+            lam=agent_cfg.get("lam", 0.95),
+            clip_eps=agent_cfg.get("clip_eps", 0.2),
+            n_epochs=agent_cfg.get("n_epochs", 10),
+            batch_size=agent_cfg.get("batch_size", 64),
+            rollout_steps=agent_cfg.get("rollout_steps", 2048),
+            vf_coef=agent_cfg.get("vf_coef", 0.5),
+            ent_coef=agent_cfg.get("ent_coef", 0.01),
+            max_grad_norm=agent_cfg.get("max_grad_norm", 0.5),
+            clip_value_loss=agent_cfg.get("clip_value_loss", True),
+            target_kl=agent_cfg.get("target_kl", 0.015),
+            device=device,
+        )
+
     if name == "dqn":
         from agents.dqn.agent import DQNAgent
 
@@ -82,6 +104,8 @@ def build_agent(name: str, env: gym.Env, cfg: dict[str, Any], device: str = "cpu
             eps_end=agent_cfg.get("eps_end", 0.01),
             eps_decay_steps=agent_cfg.get("eps_decay_steps", 500),
             target_update_freq=agent_cfg.get("target_update_freq", 1),
+            use_double=agent_cfg.get("use_double", True),
+            use_dueling=agent_cfg.get("use_dueling", False),
             device=device,
         )
 

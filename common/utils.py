@@ -74,7 +74,7 @@ def init_weights(module: nn.Module, gain: float = 1.0) -> None:
     Orthogonal initialisation (recommended for policy networks).
     Biases are set to zero.
     """
-    if isinstance(module, nn.Linear):
+    if isinstance(module, (nn.Linear, nn.Conv2d)):
         nn.init.orthogonal_(module.weight, gain=gain)
         nn.init.zeros_(module.bias)
 

@@ -59,7 +59,7 @@ import numpy as np
 
 from common.registry import build_agent, infer_agent_name
 from common.utils import load_config, set_seed
-from envs.wrappers import make_env
+from envs.wrappers import add_atari_wrappers
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Core recording logic
@@ -89,6 +89,8 @@ def record(
     width: int | None = None,
     height: int | None = None,
     env_kwargs: dict | None = None,
+    atari_preprocessing: bool = False,
+    frame_stack: int = 4,
 ) -> list[dict]:
     """Run n_episodes with gymnasium's RecordVideo wrapper (MP4 output)."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -99,6 +101,11 @@ def record(
     if height is not None:
         render_kwargs["height"] = height
     env = gym.make(env_id, render_mode="rgb_array", **(env_kwargs or {}), **render_kwargs)
+    if atari_preprocessing:
+        # AtariPreprocessing/FrameStackObservation feed the agent's policy;
+        # env.render() still returns full-color raw frames for the video,
+        # since neither wrapper overrides render().
+        env = add_atari_wrappers(env, frame_stack=frame_stack)
     env = gym.wrappers.RecordVideo(
         env,
         video_folder=str(output_dir),
@@ -106,12 +113,13 @@ def record(
         name_prefix="rl-video",
         disable_logger=True,
     )
-    env.reset(seed=seed)
-
     stats = []
 
     for ep in range(n_episodes):
-        obs, _ = env.reset()
+        # Only the first reset takes `seed` — gymnasium reseeds the RNG on a
+        # seeded reset, so seeding every episode would replay episode 0's
+        # trajectory n_episodes times instead of advancing through the run.
+        obs, _ = env.reset(seed=seed if ep == 0 else None)
         ep_return = 0.0
         ep_length = 0
         done = False
@@ -150,6 +158,8 @@ def record_gif(
     height: int | None = None,
     gif_colors: int = 256,
     env_kwargs: dict | None = None,
+    atari_preprocessing: bool = False,
+    frame_stack: int = 4,
 ) -> list[dict]:
     """
     Collect frames manually and write a single palette-quantized GIF via Pillow.
@@ -174,14 +184,17 @@ def record_gif(
     if height is not None:
         render_kwargs["height"] = height
     env = gym.make(env_id, render_mode="rgb_array", **(env_kwargs or {}), **render_kwargs)
-    env.reset(seed=seed)
-
+    if atari_preprocessing:
+        env = add_atari_wrappers(env, frame_stack=frame_stack)
     frames: list = []
     stats = []
     total_frames = 0
 
     for ep in range(n_episodes):
-        obs, _ = env.reset()
+        # Only the first reset takes `seed` — gymnasium reseeds the RNG on a
+        # seeded reset, so seeding every episode would replay episode 0's
+        # trajectory n_episodes times instead of advancing through the run.
+        obs, _ = env.reset(seed=seed if ep == 0 else None)
         ep_return = 0.0
         ep_length = 0
         done = False
@@ -354,9 +367,13 @@ def main():
     )
 
     env_kwargs = cfg.get("env_kwargs")
+    atari_preprocessing = cfg.get("atari_preprocessing", False)
+    frame_stack = cfg.get("frame_stack", 4)
 
     # ── Build agent (using a plain env just for space inference) ─────────────
     _tmp_env = gym.make(env_id, **(env_kwargs or {}))
+    if atari_preprocessing:
+        _tmp_env = add_atari_wrappers(_tmp_env, frame_stack=frame_stack)
     agent = build_agent(agent_name, _tmp_env, cfg, device=args.device)
     _tmp_env.close()
 
@@ -385,6 +402,8 @@ def main():
             height=args.height,
             gif_colors=args.gif_colors,
             env_kwargs=env_kwargs,
+            atari_preprocessing=atari_preprocessing,
+            frame_stack=frame_stack,
         )
         save_stats(stats, output_dir)
         print(f"GIF saved to: {gif_path}\n")
@@ -400,6 +419,8 @@ def main():
             width=args.width,
             height=args.height,
             env_kwargs=env_kwargs,
+            atari_preprocessing=atari_preprocessing,
+            frame_stack=frame_stack,
         )
         save_stats(stats, output_dir)
         print(f"Videos saved to: {output_dir}/\n")
