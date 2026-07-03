@@ -1,5 +1,6 @@
 gymnasium>=0.29.0
 mujoco>=3.0.0          # backend for gymnasium's MuJoCo envs (Hopper, Humanoid, etc.)
+flappy-bird-gymnasium>=0.4.0   # registers FlappyBird-v0 with gymnasium on import
 torch>=2.0.0
 numpy>=1.24.0
 pyyaml>=6.0

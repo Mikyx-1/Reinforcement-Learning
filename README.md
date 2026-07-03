@@ -36,11 +36,19 @@ Clean, well-documented implementations of core RL algorithms, built to demonstra
 <b>SAC</b> · Humanoid-v5 (MuJoCo, 3D, 17 DOF) · greedy eval, return ≈5147 ± 11, walks forward for the full 1000-step episode
 </td>
 </tr>
+<tr>
+<td align="center" width="33%">
+<img src="assets/demos/ppo_flappybird.gif" width="100%"><br>
+<b>PPO</b> · FlappyBird-v0 (flappy-bird-gymnasium) · greedy eval, return 22.6, clears multiple pipes
+</td>
+</tr>
 </table>
 
 GIFs are generated straight from a saved checkpoint with [`scripts/record_video.py --format gif`](scripts/record_video.py) (no manual editing) — MuJoCo scenes need `--width`/`--height` and `--gif_colors` to keep the file size sane (a raw-resolution, full-palette GIF hit 15MB; downscaled + palette-quantized it's ~1.5MB). See that script's usage examples for the exact command.
 
 The Humanoid-v5 policy went from falling over immediately to reliably walking forward the entire episode within ~500k steps, then plateaued around return ≈5100-5150 through step 750k with no further gait improvement — training was stopped there rather than run to the full 3M-step budget for no gain. Published SAC baselines typically reach 6000-10000+ given several million steps and continued refinement; this checkpoint is honestly "learned to walk," not "solved gracefully" — the arms in particular stay visibly stiff/uncoordinated, since Humanoid's reward is dominated by forward velocity and arm movement only affects balance recovery, a much weaker training signal.
+
+FlappyBird's reward is sparse enough (+0.1/frame alive, +1/pipe, -1 on death) that a first DQN attempt ([`configs/dqn_flappybird.yaml`](configs/dqn_flappybird.yaml)) plateaued at return ≈4.2 — it never learned to clear a single pipe, since ε-greedy annealed to its floor before random exploration ever stumbled into one. Switching to PPO ([`configs/ppo_flappybird.yaml`](configs/ppo_flappybird.yaml)), whose entropy bonus doesn't anneal away, solved that in the same step budget: mean return 21.0 ± 11.0 over 20 eval episodes.
 
 ---
 
@@ -58,6 +66,7 @@ The Humanoid-v5 policy went from falling over immediately to reliably walking fo
 | SAC | Off-policy actor-critic | Continuous | ✅ Done |
 | MuJoCo Hopper-v5 (3D) | via SAC | Continuous | ✅ Done — see demo above |
 | MuJoCo Humanoid-v5 (3D, 17 DOF) | via SAC | Continuous | ✅ Done — see demo above |
+| FlappyBird-v0 (flappy-bird-gymnasium) | via PPO | Discrete | ✅ Done — see demo above |
 
 Each algorithm's theory notes live next to its code, e.g. [`agents/dqn/README.md`](agents/dqn/README.md).
 
@@ -150,6 +159,10 @@ python scripts/record_video.py \
     --checkpoint results/checkpoints/sac_hopper/SACAgent_ep1700.pt \
     --format gif --max_frames 200 --width 200 --height 200 --gif_colors 128 \
     --output_dir assets/demos
+
+# Train PPO on FlappyBird (needs `pip install flappy-bird-gymnasium`; the
+# env_kwargs.use_lidar: false in the config keeps obs a 12-dim feature vector)
+python scripts/train.py --config configs/ppo_flappybird.yaml --device cuda
 
 # Run tests
 pytest tests/ -v

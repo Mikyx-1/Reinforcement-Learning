@@ -6,6 +6,7 @@ These follow the standard gymnasium.Wrapper API and can be stacked.
 
 from collections import deque
 
+import flappy_bird_gymnasium  # noqa: F401  registers FlappyBird-v0 with gymnasium
 import gymnasium as gym
 import numpy as np
 
@@ -121,6 +122,7 @@ def make_env(
     scale_reward: float | None = None,
     record_stats: bool = True,
     render_mode: str | None = None,
+    env_kwargs: dict | None = None,
 ) -> gym.Env:
     """
     Factory that builds and wraps an environment.
@@ -133,11 +135,13 @@ def make_env(
         scale_reward:  If set, multiply rewards by this factor.
         record_stats:  Attach RecordEpisodeStats wrapper.
         render_mode:   Passed straight to gym.make(), e.g. 'human' or 'rgb_array'.
+        env_kwargs:    Extra constructor kwargs forwarded to gym.make(), e.g.
+                       {'use_lidar': False} for FlappyBird-v0's feature-vector obs.
 
     Returns:
         Wrapped gymnasium.Env.
     """
-    env = gym.make(env_id, render_mode=render_mode)
+    env = gym.make(env_id, render_mode=render_mode, **(env_kwargs or {}))
     env.reset(seed=seed)
 
     if record_stats:

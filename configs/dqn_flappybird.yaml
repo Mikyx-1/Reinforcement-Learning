@@ -1,0 +1,80 @@
+# DQN (Double + Dueling) on FlappyBird-v0 (flappy-bird-gymnasium)
+# ──────────────────────────────────────────────────────────────────────
+# Solve criterion : mean return ≥ 50 over 20 eval episodes (roughly
+#                   40-50 pipes cleared per life; the package caps
+#                   score_limit only if you set it explicitly)
+# Expected        : ~500k-1M steps — sparser reward than LunarLander
+#                   (only +0.1/frame alive, +1/pipe passed, -1 on death),
+#                   so the replay buffer needs far more random experience
+#                   before Q-values start reflecting pipe-passing skill
+# Action space    : Discrete(2) — 0 = do nothing, 1 = flap
+# Observation     : 12-dim feature vector (bird pos/vel + next pipe
+#                   geometry), via env_kwargs.use_lidar: false — keeps
+#                   this a plain MLP problem, no CNN needed
+# Loop            : train_off_policy() — step → ReplayBuffer → sample → update
+
+env_id: FlappyBird-v0
+seed: 42
+
+# Non-lidar 12-dim feature vector instead of the 180-dim lidar default —
+# much faster to learn from with a small MLP.
+env_kwargs:
+  use_lidar: false
+
+# ── Agent ─────────────────────────────────────────────────────────────
+agent:
+  hidden_dims: [256, 256]   # same size as LunarLander; 12-dim obs, 2 actions
+
+  lr: 5.0e-4
+  gamma: 0.99
+
+  # ε-greedy exploration schedule
+  eps_start: 1.0
+  eps_end: 0.05
+  eps_decay_steps: 150_000  # longer than LunarLander — pipe-passing reward
+                             # is rarer, so exploration needs to run longer
+                             # before greedy actions are trustworthy
+
+  # Target network
+  target_update_freq: 1_000
+
+  # Architecture variants
+  use_double: true           # Double DQN (always on)
+  use_dueling: true          # Dueling — most states don't care which action
+                              # is taken (mid-air, far from a pipe); only a
+                              # narrow band near pipe gaps needs precise timing
+
+# ── Training ──────────────────────────────────────────────────────────
+training:
+  max_steps: 1_000_000
+  warmup_steps: 10_000
+  batch_size: 128
+  buffer_size: 100_000
+  update_every: 1
+  eval_interval: 50
+  save_interval: 100
+  checkpoint_dir: results/checkpoints/dqn_flappybird
+  print_freq: 10
+
+# ── Logging ───────────────────────────────────────────────────────────
+logging:
+  log_dir: results/runs/dqn_flappybird
+  use_wandb: true
+  wandb_config:
+    project: "Reinforcement-Learning"
+    group: dqn_flappybird
+
+# ── Notes ─────────────────────────────────────────────────────────────
+# Tuning guidance:
+#   - If the agent never learns to flap in time (dies on first pipe) →
+#     raise eps_decay_steps further, or raise warmup_steps so the buffer
+#     has more varied (state, action) pairs before learning starts
+#   - If mean_q diverges → lower lr to 1e-4 or raise target_update_freq
+#   - If training is slow wall-clock time → env_kwargs.use_lidar: true
+#     is NOT recommended here (180-dim obs, much slower to learn), prefer
+#     tuning eps_decay_steps/buffer_size instead
+#
+# Compared to dqn_lunarlander.yaml:
+#   - eps_decay_steps 150k vs 50k: sparser reward needs more exploration
+#   - target_update_freq 1k vs 1k (same): stable target still matters here
+#   - env_kwargs.use_lidar: false: keeps observation a small 12-dim vector

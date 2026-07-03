@@ -88,6 +88,7 @@ def record(
     show: bool,
     width: int | None = None,
     height: int | None = None,
+    env_kwargs: dict | None = None,
 ) -> list[dict]:
     """Run n_episodes with gymnasium's RecordVideo wrapper (MP4 output)."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -97,7 +98,7 @@ def record(
         render_kwargs["width"] = width
     if height is not None:
         render_kwargs["height"] = height
-    env = gym.make(env_id, render_mode="rgb_array", **render_kwargs)
+    env = gym.make(env_id, render_mode="rgb_array", **(env_kwargs or {}), **render_kwargs)
     env = gym.wrappers.RecordVideo(
         env,
         video_folder=str(output_dir),
@@ -148,6 +149,7 @@ def record_gif(
     width: int | None = None,
     height: int | None = None,
     gif_colors: int = 256,
+    env_kwargs: dict | None = None,
 ) -> list[dict]:
     """
     Collect frames manually and write a single palette-quantized GIF via Pillow.
@@ -171,7 +173,7 @@ def record_gif(
         render_kwargs["width"] = width
     if height is not None:
         render_kwargs["height"] = height
-    env = gym.make(env_id, render_mode="rgb_array", **render_kwargs)
+    env = gym.make(env_id, render_mode="rgb_array", **(env_kwargs or {}), **render_kwargs)
     env.reset(seed=seed)
 
     frames: list = []
@@ -351,8 +353,10 @@ def main():
         f"  Output dir : {output_dir}\n"
     )
 
+    env_kwargs = cfg.get("env_kwargs")
+
     # ── Build agent (using a plain env just for space inference) ─────────────
-    _tmp_env = gym.make(env_id)
+    _tmp_env = gym.make(env_id, **(env_kwargs or {}))
     agent = build_agent(agent_name, _tmp_env, cfg, device=args.device)
     _tmp_env.close()
 
@@ -380,6 +384,7 @@ def main():
             width=args.width,
             height=args.height,
             gif_colors=args.gif_colors,
+            env_kwargs=env_kwargs,
         )
         save_stats(stats, output_dir)
         print(f"GIF saved to: {gif_path}\n")
@@ -394,6 +399,7 @@ def main():
             show=args.show,
             width=args.width,
             height=args.height,
+            env_kwargs=env_kwargs,
         )
         save_stats(stats, output_dir)
         print(f"Videos saved to: {output_dir}/\n")

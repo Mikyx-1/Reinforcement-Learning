@@ -212,3 +212,6 @@ __marimo__/
 
 # Training outputs (checkpoints, TensorBoard/CSV logs) — reproducible from configs
 /results/
+
+# W&B local run logs — reproducible from configs, tracked remotely on wandb.ai
+/wandb/

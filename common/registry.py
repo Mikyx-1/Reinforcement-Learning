@@ -57,8 +57,16 @@ def build_agent(name: str, env: gym.Env, cfg: dict[str, Any], device: str = "cpu
             hidden_dims=agent_cfg["hidden_dims"],
             lr=agent_cfg["lr"],
             gamma=agent_cfg["gamma"],
-            ent_coef=agent_cfg.get("entropy_coef", 0.0),
+            lam=agent_cfg.get("lam", 0.95),
             clip_eps=agent_cfg.get("clip_eps", 0.2),
+            n_epochs=agent_cfg.get("n_epochs", 10),
+            batch_size=agent_cfg.get("batch_size", 64),
+            rollout_steps=agent_cfg.get("rollout_steps", 2048),
+            vf_coef=agent_cfg.get("vf_coef", 0.5),
+            ent_coef=agent_cfg.get("ent_coef", 0.01),
+            max_grad_norm=agent_cfg.get("max_grad_norm", 0.5),
+            clip_value_loss=agent_cfg.get("clip_value_loss", True),
+            target_kl=agent_cfg.get("target_kl", 0.015),
             device=device,
         )
 

@@ -46,7 +46,9 @@ def main():
 
     set_seed(seed)
     render_mode = "human" if args.render else None
-    env = make_env(cfg["env_id"], seed=seed, render_mode=render_mode)
+    env = make_env(
+        cfg["env_id"], seed=seed, render_mode=render_mode, env_kwargs=cfg.get("env_kwargs")
+    )
     agent = build_agent(agent_name, env, cfg, device=args.device)
     agent.load(args.checkpoint)
 
