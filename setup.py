@@ -4,6 +4,7 @@ setup(
     name="rl_zoo",
     version="0.1.0",
     description="Clean RL algorithm implementations for research and demonstration.",
+    license="MIT",
     packages=find_packages(exclude=["tests", "notebooks", "scripts"]),
     python_requires=">=3.10",
     install_requires=[
