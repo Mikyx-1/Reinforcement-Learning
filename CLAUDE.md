@@ -5,9 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Common commands
 
 ```bash
-# Install (editable; needed so `agents.*`, `common.*`, etc. import from anywhere)
+# Install
 pip install -r requirements.txt
-pip install -e .
 
 # Train (config filename's prefix selects the algorithm — see "Agent routing" below)
 python scripts/train.py --config configs/reinforce_cartpole.yaml

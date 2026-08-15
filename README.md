@@ -128,7 +128,6 @@ Reinforcement-Learning/
 ```bash
 # Install
 pip install -r requirements.txt
-pip install -e .
 
 # Train — algorithm is inferred from the config filename's prefix
 python scripts/train.py --config configs/reinforce_cartpole.yaml
